@@ -20,6 +20,12 @@
         android:layout_height="wrap_content"
         app:layout_constraintTop_toBottomOf="@id/logoView">
     </ScrollView>
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toTopOf="@id/input_layout"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:src="@drawable/ic_speech"/>
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/input_layout"
         android:layout_width="match_parent"

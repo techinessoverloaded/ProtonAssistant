@@ -20,12 +20,53 @@
         android:layout_height="wrap_content"
         app:layout_constraintTop_toBottomOf="@id/logoView">
     </ScrollView>
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:layout_width="wrap_content"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/speechTextOptLayout"
+        android:layout_width="150dp"
         android:layout_height="wrap_content"
-        app:layout_constraintBottom_toTopOf="@id/input_layout"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:src="@drawable/ic_speech"/>
+        app:layout_constraintBottom_toTopOf="@id/input_layout"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/shape_input"
+        android:backgroundTint="@color/t_blue"
+        android:padding="6dp"
+        >
+        <ImageView
+            android:id="@+id/speechInputOpt"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/optSeparator"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:src="@drawable/ic_speech"
+            android:padding="4dp"
+            app:tint="@color/white"
+            />
+        <View
+            android:id="@+id/optSeparator"
+            android:layout_width="1dp"
+            android:layout_height="36dp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:background="@color/white"
+            />
+        <ImageView
+            android:id="@+id/textInputOpt"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/optSeparator"
+            android:src="@drawable/ic_kboard"
+            android:padding="4dp"
+            app:tint="@color/white"
+            />
+    </androidx.constraintlayout.widget.ConstraintLayout>
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/input_layout"
         android:layout_width="match_parent"
@@ -34,6 +75,7 @@
         android:background="@color/white"
         android:padding="12dp"
         app:elevation="2dp"
+        android:visibility="invisible"
         >
         <LinearLayout
             android:layout_width="0dp"
@@ -63,6 +105,7 @@
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
+            app:tint="@color/t_blue"
             />
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

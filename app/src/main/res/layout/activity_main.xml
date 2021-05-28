@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    tools:context=".Activities.MainActivity">
     <ImageView
         android:id="@+id/logoView"
         android:layout_width="match_parent"
@@ -31,6 +31,7 @@
         android:background="@drawable/shape_input"
         android:backgroundTint="@color/t_blue"
         android:padding="6dp"
+        android:visibility="visible"
         >
         <ImageView
             android:id="@+id/speechInputOpt"
@@ -64,6 +65,31 @@
             app:layout_constraintEnd_toStartOf="@id/optSeparator"
             android:src="@drawable/ic_kboard"
             android:padding="4dp"
+            app:tint="@color/white"
+            />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/speechRecogLayout"
+        android:layout_width="150dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/input_layout"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/shape_input"
+        android:backgroundTint="@color/teal_700"
+        android:padding="6dp"
+        android:visibility="invisible"
+        >
+        <ImageView
+            android:id="@+id/speechRecogStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:src="@drawable/ic_listening"
             app:tint="@color/white"
             />
     </androidx.constraintlayout.widget.ConstraintLayout>

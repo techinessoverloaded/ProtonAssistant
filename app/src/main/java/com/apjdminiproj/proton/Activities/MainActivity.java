@@ -1,9 +1,10 @@
 package com.apjdminiproj.proton.Activities;
 
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
+
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
@@ -14,14 +15,18 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.provider.Settings;
-import android.telephony.SmsManager;
+import android.speech.RecognizerIntent;
 import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
+
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.*;
-import com.apjdminiproj.proton.Helpers.AssistantUtils;
+
 import com.apjdminiproj.proton.Helpers.PermissionHelper;
 import com.apjdminiproj.proton.R;
 import android.speech.RecognitionListener;
@@ -30,7 +35,8 @@ import android.speech.tts.TextToSpeech;
 
 import java.util.ArrayList;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity
+{
     private ConstraintLayout inputLayout, optLayout, speechRecognitionLayout;
     private ImageView speechOpt, textOpt, sendBtn;
     private EditText cmdInput;
@@ -40,7 +46,6 @@ public class MainActivity extends AppCompatActivity {
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
     private Intent speechRecognizerIntent;
-    private AssistantUtils assistantUtils;
     private String numbersRegex,contactRegex;
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -54,16 +59,14 @@ public class MainActivity extends AppCompatActivity {
         sendBtn = findViewById(R.id.send_button);
         cmdInput = findViewById(R.id.cmdInput);
         speechRecognitionLayout=findViewById(R.id.speechRecogLayout);
-        assistantUtils=new AssistantUtils(this);
+        numbersRegex="\\d{10}";
         hasCameraFlash = getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH);
-        numbersRegex="^(\\+\\d{1,3}( )?)?((\\(\\d{3}\\))|\\d{3})[- .]?\\d{3}[- .]?\\d{4}$"
-                + "|^(\\+\\d{1,3}( )?)?(\\d{3}[ ]?){2}\\d{3}$"
-                + "|^(\\+\\d{1,3}( )?)?(\\d{3}[ ]?)(\\d{2}[ ]?){2}\\d{2}$";
         speechOpt.setOnClickListener(v->{
             if(speechRecognitionLayout.getVisibility()==View.INVISIBLE)
             {
                 optLayout.setVisibility(View.GONE);
                 speechRecognitionLayout.setVisibility(View.VISIBLE);
+                textToSpeech.speak("Listening to you",TextToSpeech.QUEUE_FLUSH,null,"ListeningToYou");
                 try
                 {
                     Thread.sleep(2200);
@@ -89,29 +92,51 @@ public class MainActivity extends AppCompatActivity {
             }
             else
                 {
-                executeCommand(command);
-                cmdInput.setText(null);
-                command=null;
+                    executeCommand(preprocessCommand(command));
+                    cmdInput.setText(null);
+                    command=null;
             }
         });
-        checkPermission();
+        if(!Settings.System.canWrite(this))
+        {
+            final AlertDialog.Builder builder2=new AlertDialog.Builder(MainActivity.this);
+            builder2.setTitle("Needs Protected Permission").setCancelable(false)
+                    .setMessage("This app needs the following permission to run properly:\n"
+                            +Manifest.permission.WRITE_SETTINGS+"\n You will now be redirected to the Settings to grant the Permission")
+                    .setPositiveButton("OK", (dialog,which) -> {
+                        Intent intent=new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+                        intent.setData(Uri.parse("package:"+getPackageName()));
+                        startActivityForResult(intent,2);
+                    }).setNegativeButton("CANCEL",(dialog,which)->{
+                dialog.cancel();
+            });
+            final AlertDialog alertd=builder2.create();
+            alertd.show();
+        }
+        else
+            checkPermission();
     }
-
+    private String preprocessCommand(String cmd)
+    {
+        cmd=cmd.toLowerCase();
+        cmd=cmd.replaceAll("\\p{Punct}","");
+        cmd=cmd.replaceAll("\\s","");
+        if(cmd.contains("heytypex"))
+            cmd=cmd.replace("heytypex","");
+        return cmd;
+    }
     private boolean executeCommand(String cmd)
     {
         if (cmd.isEmpty() || cmd == null)
             return false;
-        cmd=cmd.toLowerCase();
-        if(cmd.contains("hey typex"))
-            cmd.replace("hey typex","");
-        if (cmd.contains("call"))
+        if (cmd.contains("callthisnumber"))
         {
-            cmd=cmd.replace("call","");
+            cmd=cmd.replace("callthisnumber","");
             Pattern numberPat = Pattern.compile(numbersRegex);
             if(numberPat.matcher(cmd).matches())
             {
                 Toast.makeText(this, "Calling " + cmd, Toast.LENGTH_LONG).show();
-                cmd = "tel:" + cmd.trim();
+                cmd = "tel:+91" + cmd.trim();
                 Uri uri = Uri.parse(cmd);
                 Intent intent = new Intent(Intent.ACTION_CALL);
                 intent.setData(uri);
@@ -124,11 +149,11 @@ public class MainActivity extends AppCompatActivity {
                 return false;
             }
         }
-        else if(cmd.contains("set alarm at"))
+        else if(cmd.contains("setalarmat"))
         {
 
         }
-        else if(cmd.contains("delete alarm")){
+        else if(cmd.contains("deletealarm")){
 
         }
         else if (cmd.contains("google")){
@@ -140,7 +165,7 @@ public class MainActivity extends AppCompatActivity {
         else if(cmd.contains("ping")){
             //send sms
         }
-        else if(cmd.contains("take a selfie"))
+        else if(cmd.contains("takeaselfie"))
         {
             Intent intent=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             intent.putExtra("android.intent.extras.LENS_FACING_FRONT", 1);
@@ -148,36 +173,33 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(MainActivity.this,"Opening Selfie Cam ! Say Cheese !",Toast.LENGTH_LONG).show();
             startActivity(intent);
         }
-        else if(cmd.contains("take a picture"))
+        else if(cmd.contains("takeapicture"))
         {
             Intent intent=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             Toast.makeText(MainActivity.this,"Opening Back Cam !",Toast.LENGTH_LONG).show();
             startActivity(intent);
         }
-        else if(cmd.contains("flashlight"))
+        else if(cmd.contains("turnonflashlight"))
         {
-            cmd=cmd.replace("flashlight","");
             if(!hasCameraFlash)
             {
                 Toast.makeText(this, "This phone does not support Flashlight", Toast.LENGTH_LONG).show();
                 return false;
             }
-            if(cmd.contains("on"))
+            CameraManager cameraManager=(CameraManager)getSystemService(Context.CAMERA_SERVICE);
+            try
             {
-                CameraManager cameraManager=(CameraManager)getSystemService(Context.CAMERA_SERVICE);
-                try
-                {
-                    String cameraId = cameraManager.getCameraIdList()[0];
-                    cameraManager.setTorchMode(cameraId, true);
-                    return true;
-                }
-                catch (CameraAccessException e)
-                {
-                    Toast.makeText(this,"Unable to Access Camera to turn ON Flashlight",Toast.LENGTH_LONG).show();
-                    return false;
-                }
+                String cameraId = cameraManager.getCameraIdList()[0];
+                cameraManager.setTorchMode(cameraId, true);
+                return true;
             }
-            else if(cmd.contains("off"))
+            catch (CameraAccessException e)
+            {
+                Toast.makeText(this,"Unable to Access Camera to turn ON Flashlight",Toast.LENGTH_LONG).show();
+                return false;
+            }
+        }
+        else if(cmd.contains("turnoffflashlight"))
             {
                 CameraManager cameraManager=(CameraManager)getSystemService(Context.CAMERA_SERVICE);
                 try
@@ -192,9 +214,7 @@ public class MainActivity extends AppCompatActivity {
                     return false;
                 }
             }
-
-        }
-        else if(cmd.contains("increase brightness"))
+        else if(cmd.contains("increasebrightness"))
         {
             int currentBrightness=Settings.System.getInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,0);
             if(currentBrightness+30<=255)
@@ -206,7 +226,7 @@ public class MainActivity extends AppCompatActivity {
                         currentBrightness+(255-currentBrightness));
             return true;
         }
-        else if(cmd.contains("decrease brightness"))
+        else if(cmd.contains("decreasebrightness"))
         {
             int currentBrightness=Settings.System.getInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,255);
             if(currentBrightness-30>=0)
@@ -218,15 +238,14 @@ public class MainActivity extends AppCompatActivity {
                         currentBrightness+(currentBrightness-30));
             return true;
         }
-        else if(cmd.contains("increase volume"))
+        else if(cmd.contains("increasevolume"))
         {
 
         }
-        else if(cmd.contains("decrease volume"))
+        else if(cmd.contains("decreasevolume"))
         {
 
         }
-
         return true;
     }
     private boolean callByContactName(String ct)
@@ -243,7 +262,55 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults)
     {
-        permissionHelper.onRequestPermissionsResult(this,requestCode,permissions,grantResults);
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults);
+        switch (requestCode)
+        {
+            case 100:
+            {
+                Map<String, Integer> perms = new HashMap<>();
+                for (String permission : permissions)
+                {
+                    perms.put(permission, PackageManager.PERMISSION_GRANTED);
+                }
+                if (grantResults.length > 0)
+                {
+                    for (int i = 0; i < permissions.length; i++)
+                        perms.put(permissions[i], grantResults[i]);
+
+                    boolean allPermissionsGranted = true;
+                    for (String permission1 : permissions)
+                    {
+                        allPermissionsGranted = allPermissionsGranted && (perms.get(permission1) == PackageManager.PERMISSION_GRANTED);
+                    }
+                    if (allPermissionsGranted)
+                    {
+                        Log.d(PermissionHelper.class.getSimpleName(), "onRequestPermissionsResult: all permissions granted");
+                    }
+                    else
+                    {
+                        for (String permission2 : perms.keySet())
+                            if (perms.get(permission2) == PackageManager.PERMISSION_GRANTED)
+                                perms.remove(permission2);
+
+                        StringBuilder message = new StringBuilder("The app has not been granted the following permission(s):\n\n");
+                        for (String permission : perms.keySet())
+                        {
+                            message.append(permission);
+                            message.append("\n");
+                        }
+                        message.append("\nHence, it cannot function properly." +
+                                "\nPlease consider granting it these permissions in the Phone Settings.");
+
+                        final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                        builder.setTitle("Permission Required")
+                                .setMessage(message)
+                                .setPositiveButton("OK", (dialog, id) -> dialog.cancel());
+                        final AlertDialog alert = builder.create();
+                        alert.show();
+                    }
+                }
+            }
+        }
     }
 
     @Override
@@ -252,20 +319,28 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         if (textToSpeech == null)
         {
-            textToSpeech = assistantUtils.getTextToSpeechObj();
+            textToSpeech = new TextToSpeech(MainActivity.this, status ->
+            {
+                if (status == TextToSpeech.SUCCESS)
+                {
+                    textToSpeech.setLanguage(Locale.UK);
+                }
+            });
         }
         if (speechRecognizer == null)
         {
-            if (assistantUtils.isCompatible())
+            if(SpeechRecognizer.isRecognitionAvailable(MainActivity.this))
             {
-                speechRecognizer = assistantUtils.getSpeechRecognizerObj();
-                speechRecognizerIntent = assistantUtils.getRecogniserIntent(getPackageName());
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(MainActivity.this);
+                speechRecognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+                speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE,getPackageName());
                 speechRecognizer.setRecognitionListener(new RecognitionListener()
                 {
                     @Override
                     public void onReadyForSpeech(Bundle params)
                     {
-                        textToSpeech.speak("Listening to you",TextToSpeech.QUEUE_FLUSH,null,"ListeningToYou");
                         Toast.makeText(MainActivity.this,"Listening to you...",Toast.LENGTH_LONG).show();
                     }
 
@@ -318,7 +393,8 @@ public class MainActivity extends AppCompatActivity {
                         else
                             {
                             Log.d("recognitionResults", command);
-                            executeCommand(command);
+                            executeCommand(preprocessCommand(command));
+                            Log.d("preprocessedCmd",preprocessCommand(command));
                         }
                     }
 
@@ -362,5 +438,31 @@ public class MainActivity extends AppCompatActivity {
         textToSpeech.shutdown();
         speechRecognizer.destroy();
         super.onDestroy();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data)
+    {
+        super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode==2)
+        {
+            if(Settings.System.canWrite(MainActivity.this))
+                Log.d("ProtectedPermissions","Write Settings Permission granted");
+            else
+            {
+                StringBuilder message = new StringBuilder("The app has not been granted the following permission(s):\n\n");
+                message.append(Manifest.permission.WRITE_SETTINGS);
+                message.append("\n");
+                message.append("\nHence, it cannot function properly." +
+                        "\nPlease consider granting it these permissions in the Phone Settings.");
+                final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                builder.setTitle("Permission Required")
+                        .setMessage(message)
+                        .setPositiveButton("OK", (dialog, id) -> dialog.cancel());
+                final AlertDialog alert = builder.create();
+                alert.show();
+            }
+            checkPermission();
+        }
     }
 }

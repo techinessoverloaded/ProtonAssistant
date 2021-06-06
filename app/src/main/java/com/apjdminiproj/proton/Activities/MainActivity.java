@@ -4,7 +4,8 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
-
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
@@ -21,18 +22,18 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
-
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.*;
-
+import com.apjdminiproj.proton.Helpers.Chat;
+import com.apjdminiproj.proton.Helpers.ChatAdapter;
 import com.apjdminiproj.proton.Helpers.PermissionHelper;
 import com.apjdminiproj.proton.R;
 import android.speech.RecognitionListener;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
-
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity
@@ -47,6 +48,9 @@ public class MainActivity extends AppCompatActivity
     private TextToSpeech textToSpeech;
     private Intent speechRecognizerIntent;
     private String numbersRegex,contactRegex;
+    private ChatAdapter chatAdapter;
+    private List<Chat> mChat;
+    private RecyclerView recyclerView;
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -60,6 +64,14 @@ public class MainActivity extends AppCompatActivity
         cmdInput = findViewById(R.id.cmdInput);
         speechRecognitionLayout=findViewById(R.id.speechRecogLayout);
         numbersRegex="\\d{10}";
+        recyclerView=findViewById(R.id.recyclerView);
+        recyclerView.setHasFixedSize(true);
+        LinearLayoutManager linearLayoutManager=new LinearLayoutManager(MainActivity.this);
+        linearLayoutManager.setStackFromEnd(true);
+        recyclerView.setLayoutManager(linearLayoutManager);
+        mChat=new ArrayList<>();
+        chatAdapter=new ChatAdapter(MainActivity.this,mChat);
+        recyclerView.setAdapter(chatAdapter);
         hasCameraFlash = getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH);
         speechOpt.setOnClickListener(v->{
             if(speechRecognitionLayout.getVisibility()==View.INVISIBLE)
@@ -92,6 +104,7 @@ public class MainActivity extends AppCompatActivity
             }
             else
                 {
+                    sendMessage(command);
                     executeCommand(preprocessCommand(command));
                     cmdInput.setText(null);
                     command=null;
@@ -121,8 +134,8 @@ public class MainActivity extends AppCompatActivity
         cmd=cmd.toLowerCase();
         cmd=cmd.replaceAll("\\p{Punct}","");
         cmd=cmd.replaceAll("\\s","");
-        if(cmd.contains("heytypex"))
-            cmd=cmd.replace("heytypex","");
+        if(cmd.contains("heyproton"))
+            cmd=cmd.replace("heyproton","");
         return cmd;
     }
     private boolean executeCommand(String cmd)
@@ -135,7 +148,7 @@ public class MainActivity extends AppCompatActivity
             Pattern numberPat = Pattern.compile(numbersRegex);
             if(numberPat.matcher(cmd).matches())
             {
-                Toast.makeText(this, "Calling " + cmd, Toast.LENGTH_LONG).show();
+                receiveMessage("Calling " + cmd);
                 cmd = "tel:+91" + cmd.trim();
                 Uri uri = Uri.parse(cmd);
                 Intent intent = new Intent(Intent.ACTION_CALL);
@@ -145,16 +158,9 @@ public class MainActivity extends AppCompatActivity
             }
             else
                 {
-                    Toast.makeText(this,"Invalid Phone Number",Toast.LENGTH_LONG).show();
+                    receiveMessage("Invalid Phone Number");
                 return false;
             }
-        }
-        else if(cmd.contains("setalarmat"))
-        {
-
-        }
-        else if(cmd.contains("deletealarm")){
-
         }
         else if (cmd.contains("google")){
 
@@ -170,20 +176,20 @@ public class MainActivity extends AppCompatActivity
             Intent intent=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             intent.putExtra("android.intent.extras.LENS_FACING_FRONT", 1);
             intent.putExtra("android.intent.extra.USE_FRONT_CAMERA", true);
-            Toast.makeText(MainActivity.this,"Opening Selfie Cam ! Say Cheese !",Toast.LENGTH_LONG).show();
+            receiveMessage("Opening Selfie Cam ! Say Cheese !");
             startActivity(intent);
         }
         else if(cmd.contains("takeapicture"))
         {
             Intent intent=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-            Toast.makeText(MainActivity.this,"Opening Back Cam !",Toast.LENGTH_LONG).show();
+            receiveMessage("Opening Back Cam !");
             startActivity(intent);
         }
         else if(cmd.contains("turnonflashlight"))
         {
             if(!hasCameraFlash)
             {
-                Toast.makeText(this, "This phone does not support Flashlight", Toast.LENGTH_LONG).show();
+                receiveMessage("This phone does not support Flashlight");
                 return false;
             }
             CameraManager cameraManager=(CameraManager)getSystemService(Context.CAMERA_SERVICE);
@@ -191,11 +197,12 @@ public class MainActivity extends AppCompatActivity
             {
                 String cameraId = cameraManager.getCameraIdList()[0];
                 cameraManager.setTorchMode(cameraId, true);
+                receiveMessage("Turned ON FlashLight successfully !");
                 return true;
             }
             catch (CameraAccessException e)
             {
-                Toast.makeText(this,"Unable to Access Camera to turn ON Flashlight",Toast.LENGTH_LONG).show();
+                receiveMessage("Unable to Access Camera to turn ON Flashlight");
                 return false;
             }
         }
@@ -206,36 +213,47 @@ public class MainActivity extends AppCompatActivity
                 {
                     String cameraId = cameraManager.getCameraIdList()[0];
                     cameraManager.setTorchMode(cameraId, false);
+                    receiveMessage("Turned OFF FlashLight successfully !");
                     return true;
                 }
                 catch (CameraAccessException e)
                 {
-                    Toast.makeText(this,"Unable to Access Camera to turn OFF Flashlight",Toast.LENGTH_LONG).show();
+                    receiveMessage("Unable to Access Camera to turn OFF Flashlight");
                     return false;
                 }
             }
         else if(cmd.contains("increasebrightness"))
         {
             int currentBrightness=Settings.System.getInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,0);
-            if(currentBrightness+30<=255)
-                Settings.System.putInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS, currentBrightness+30);
-            else if(currentBrightness==255)
-                Toast.makeText(this,"The Phone is already set with Max Brightness",Toast.LENGTH_LONG).show();
+            if(currentBrightness+30<=255) {
+                Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, currentBrightness + 30);
+                receiveMessage("Increased Brightness successfully !");
+            }else if(currentBrightness==255)
+                receiveMessage("The Phone is already set with Max Brightness");
             else
-                Settings.System.putInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,
-                        currentBrightness+(255-currentBrightness));
+                {
+                Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS,
+                        currentBrightness + (255 - currentBrightness));
+                receiveMessage("Increased Brightness successfully !");
+            }
             return true;
         }
         else if(cmd.contains("decreasebrightness"))
         {
             int currentBrightness=Settings.System.getInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,255);
             if(currentBrightness-30>=0)
-                Settings.System.putInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS, currentBrightness-30);
+            {
+                Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, currentBrightness - 30);
+                receiveMessage("Decreased Brightness successfully !");
+            }
             else if(currentBrightness==0)
-                Toast.makeText(this,"The Phone is already set with Min Brightness",Toast.LENGTH_LONG).show();
+                receiveMessage("The Phone is already set with Min Brightness");
             else
+            {
                 Settings.System.putInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,
                         currentBrightness+(currentBrightness-30));
+                receiveMessage("Decreased Brightness successfully !");
+            }
             return true;
         }
         else if(cmd.contains("increasevolume"))
@@ -312,7 +330,18 @@ public class MainActivity extends AppCompatActivity
             }
         }
     }
-
+    private void sendMessage(String message)
+    {
+        Chat newMsg=new Chat(message,Chat.MSG_TYPE_RIGHT);
+        mChat.add(newMsg);
+        chatAdapter.notifyDataSetChanged();
+    }
+    private void receiveMessage(String message)
+    {
+        Chat newMsg=new Chat(message,Chat.MSG_TYPE_LEFT);
+        mChat.add(newMsg);
+        chatAdapter.notifyDataSetChanged();
+    }
     @Override
     protected void onResume()
     {
@@ -393,6 +422,7 @@ public class MainActivity extends AppCompatActivity
                         else
                             {
                             Log.d("recognitionResults", command);
+                            sendMessage(command);
                             executeCommand(preprocessCommand(command));
                             Log.d("preprocessedCmd",preprocessCommand(command));
                         }

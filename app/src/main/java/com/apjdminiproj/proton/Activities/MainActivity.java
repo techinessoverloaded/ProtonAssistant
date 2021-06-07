@@ -7,6 +7,7 @@ import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.Manifest;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -17,6 +18,7 @@ import android.os.Bundle;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.speech.RecognizerIntent;
+import android.telephony.SmsManager;
 import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
@@ -41,8 +43,7 @@ public class MainActivity extends AppCompatActivity
     private ConstraintLayout inputLayout, optLayout, speechRecognitionLayout;
     private ImageView speechOpt, textOpt, sendBtn;
     private EditText cmdInput;
-    private String command;
-    private PermissionHelper permissionHelper;
+    private String command,smsRec;
     private boolean hasCameraFlash;
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
@@ -51,6 +52,8 @@ public class MainActivity extends AppCompatActivity
     private ChatAdapter chatAdapter;
     private List<Chat> mChat;
     private RecyclerView recyclerView;
+    private LinearLayoutManager linearLayoutManager;
+    private boolean waitingForInput;
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -66,7 +69,7 @@ public class MainActivity extends AppCompatActivity
         numbersRegex="\\d{10}";
         recyclerView=findViewById(R.id.recyclerView);
         recyclerView.setHasFixedSize(true);
-        LinearLayoutManager linearLayoutManager=new LinearLayoutManager(MainActivity.this);
+        linearLayoutManager=new LinearLayoutManager(MainActivity.this);
         linearLayoutManager.setStackFromEnd(true);
         recyclerView.setLayoutManager(linearLayoutManager);
         mChat=new ArrayList<>();
@@ -104,10 +107,28 @@ public class MainActivity extends AppCompatActivity
             }
             else
                 {
-                    sendMessage(command);
-                    executeCommand(preprocessCommand(command));
-                    cmdInput.setText(null);
-                    command=null;
+                    if(!waitingForInput)
+                    {
+                        sendMessage(command, false);
+                        executeCommand(preprocessCommand(command));
+                        cmdInput.setText(null);
+                        command = null;
+                    }
+                    else
+                    {
+                        sendMessage(command, true);
+                        cmdInput.setText(null);
+                        command = null;
+                    }
+                    linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount()-1,0);
+                    recyclerView.post(() -> {
+                        View target=linearLayoutManager.findViewByPosition(chatAdapter.getItemCount()-1);
+                        if(target!=null)
+                        {
+                            int offset=recyclerView.getMeasuredHeight()-target.getMeasuredHeight();
+                            linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount()-1,offset);
+                        }
+                    });
             }
         });
         if(!Settings.System.canWrite(this))
@@ -128,6 +149,7 @@ public class MainActivity extends AppCompatActivity
         }
         else
             checkPermission();
+        waitingForInput=false;
     }
     private String preprocessCommand(String cmd)
     {
@@ -148,7 +170,7 @@ public class MainActivity extends AppCompatActivity
             Pattern numberPat = Pattern.compile(numbersRegex);
             if(numberPat.matcher(cmd).matches())
             {
-                receiveMessage("Calling " + cmd);
+                receiveMessage("Calling " + cmd,false);
                 cmd = "tel:+91" + cmd.trim();
                 Uri uri = Uri.parse(cmd);
                 Intent intent = new Intent(Intent.ACTION_CALL);
@@ -158,9 +180,9 @@ public class MainActivity extends AppCompatActivity
             }
             else
                 {
-                    receiveMessage("Invalid Phone Number");
-                return false;
-            }
+                    receiveMessage("Invalid Phone Number",false);
+                    return false;
+                }
         }
         else if (cmd.contains("google")){
 
@@ -168,28 +190,29 @@ public class MainActivity extends AppCompatActivity
         else if(cmd.contains("play")){
 
         }
-        else if(cmd.contains("ping")){
-            //send sms
+        else if(cmd.contains("ping"))
+        {
+            receiveMessage("Enter the number of the recipient",true);
         }
         else if(cmd.contains("takeaselfie"))
         {
             Intent intent=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             intent.putExtra("android.intent.extras.LENS_FACING_FRONT", 1);
             intent.putExtra("android.intent.extra.USE_FRONT_CAMERA", true);
-            receiveMessage("Opening Selfie Cam ! Say Cheese !");
+            receiveMessage("Opening Selfie Cam ! Say Cheese !",false);
             startActivity(intent);
         }
         else if(cmd.contains("takeapicture"))
         {
             Intent intent=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-            receiveMessage("Opening Back Cam !");
+            receiveMessage("Opening Back Cam !",false);
             startActivity(intent);
         }
         else if(cmd.contains("turnonflashlight"))
         {
             if(!hasCameraFlash)
             {
-                receiveMessage("This phone does not support Flashlight");
+                receiveMessage("This phone does not support Flashlight",false);
                 return false;
             }
             CameraManager cameraManager=(CameraManager)getSystemService(Context.CAMERA_SERVICE);
@@ -197,12 +220,12 @@ public class MainActivity extends AppCompatActivity
             {
                 String cameraId = cameraManager.getCameraIdList()[0];
                 cameraManager.setTorchMode(cameraId, true);
-                receiveMessage("Turned ON FlashLight successfully !");
+                receiveMessage("Turned ON FlashLight successfully !",false);
                 return true;
             }
             catch (CameraAccessException e)
             {
-                receiveMessage("Unable to Access Camera to turn ON Flashlight");
+                receiveMessage("Unable to Access Camera to turn ON Flashlight",false);
                 return false;
             }
         }
@@ -213,12 +236,12 @@ public class MainActivity extends AppCompatActivity
                 {
                     String cameraId = cameraManager.getCameraIdList()[0];
                     cameraManager.setTorchMode(cameraId, false);
-                    receiveMessage("Turned OFF FlashLight successfully !");
+                    receiveMessage("Turned OFF FlashLight successfully !",false);
                     return true;
                 }
                 catch (CameraAccessException e)
                 {
-                    receiveMessage("Unable to Access Camera to turn OFF Flashlight");
+                    receiveMessage("Unable to Access Camera to turn OFF Flashlight",false);
                     return false;
                 }
             }
@@ -227,14 +250,14 @@ public class MainActivity extends AppCompatActivity
             int currentBrightness=Settings.System.getInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,0);
             if(currentBrightness+30<=255) {
                 Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, currentBrightness + 30);
-                receiveMessage("Increased Brightness successfully !");
+                receiveMessage("Increased Brightness successfully !",false);
             }else if(currentBrightness==255)
-                receiveMessage("The Phone is already set with Max Brightness");
+                receiveMessage("The Phone is already set with Max Brightness",false);
             else
                 {
                 Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS,
                         currentBrightness + (255 - currentBrightness));
-                receiveMessage("Increased Brightness successfully !");
+                receiveMessage("Increased Brightness successfully !",false);
             }
             return true;
         }
@@ -244,15 +267,15 @@ public class MainActivity extends AppCompatActivity
             if(currentBrightness-30>=0)
             {
                 Settings.System.putInt(getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, currentBrightness - 30);
-                receiveMessage("Decreased Brightness successfully !");
+                receiveMessage("Decreased Brightness successfully !",false);
             }
             else if(currentBrightness==0)
-                receiveMessage("The Phone is already set with Min Brightness");
+                receiveMessage("The Phone is already set with Min Brightness",false);
             else
             {
                 Settings.System.putInt(getContentResolver(),Settings.System.SCREEN_BRIGHTNESS,
                         currentBrightness+(currentBrightness-30));
-                receiveMessage("Decreased Brightness successfully !");
+                receiveMessage("Decreased Brightness successfully !",false);
             }
             return true;
         }
@@ -269,6 +292,25 @@ public class MainActivity extends AppCompatActivity
     private boolean callByContactName(String ct)
     {
         return true;
+    }
+    private void sendSMS(String recipient)
+    {
+        smsRec=recipient;
+        receiveMessage("Enter the Message to be sent",true);
+    }
+    private void sendSMS(String recipient,String message)
+    {
+        if(message.trim().toLowerCase().contains("stop pinging"))
+        {
+            receiveMessage("SMS Task cancelled successfully !",false);
+        }
+        else
+            {
+            SmsManager smsManager = SmsManager.getDefault();
+            smsManager.sendTextMessage(recipient, null, message, null, null);
+            receiveMessage("Message: " + message + "\nsent to " + recipient + " successfully !", false);
+        }
+        waitingForInput=false;
     }
     private void checkPermission()
     {
@@ -330,17 +372,42 @@ public class MainActivity extends AppCompatActivity
             }
         }
     }
-    private void sendMessage(String message)
+    private void sendMessage(String message,boolean givingInput)
     {
-        Chat newMsg=new Chat(message,Chat.MSG_TYPE_RIGHT);
+        Chat newMsg = new Chat(message, Chat.MSG_TYPE_RIGHT);
         mChat.add(newMsg);
         chatAdapter.notifyDataSetChanged();
+        if(givingInput)
+        {
+            String current=mChat.get(mChat.size()-1).getMessage();
+            String previous=mChat.get(mChat.size()-2).getMessage();
+            if(previous.equals("Enter the number of the recipient"))
+            {
+                Pattern num=Pattern.compile(numbersRegex);
+                if(num.matcher(current).matches())
+                {
+                    sendSMS(current);
+                }
+                else
+                {
+                    receiveMessage("Invalid Recipient",false);
+                }
+            }
+            else if(previous.equals("Enter the Message to be sent"))
+            {
+                sendSMS(smsRec,current);
+            }
+        }
     }
-    private void receiveMessage(String message)
+    private void receiveMessage(String message,boolean needsInput)
     {
-        Chat newMsg=new Chat(message,Chat.MSG_TYPE_LEFT);
+        Chat newMsg = new Chat(message, Chat.MSG_TYPE_LEFT);
         mChat.add(newMsg);
         chatAdapter.notifyDataSetChanged();
+        if(needsInput)
+        {
+            waitingForInput=true;
+        }
     }
     @Override
     protected void onResume()
@@ -422,9 +489,18 @@ public class MainActivity extends AppCompatActivity
                         else
                             {
                             Log.d("recognitionResults", command);
-                            sendMessage(command);
+                            sendMessage(command,false);
                             executeCommand(preprocessCommand(command));
                             Log.d("preprocessedCmd",preprocessCommand(command));
+                                linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount()-1,0);
+                                recyclerView.post(() -> {
+                                    View target=linearLayoutManager.findViewByPosition(chatAdapter.getItemCount()-1);
+                                    if(target!=null)
+                                    {
+                                        int offset=recyclerView.getMeasuredHeight()-target.getMeasuredHeight();
+                                        linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount()-1,offset);
+                                    }
+                                });
                         }
                     }
 

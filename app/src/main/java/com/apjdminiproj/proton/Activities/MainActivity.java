@@ -15,6 +15,7 @@ import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.speech.RecognizerIntent;
@@ -24,7 +25,10 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -32,6 +36,7 @@ import java.util.regex.*;
 import com.apjdminiproj.proton.Helpers.Chat;
 import com.apjdminiproj.proton.Helpers.ChatAdapter;
 import com.apjdminiproj.proton.Helpers.PermissionHelper;
+import com.apjdminiproj.proton.Helpers.PreferenceUtils;
 import com.apjdminiproj.proton.R;
 import android.speech.RecognitionListener;
 import android.speech.SpeechRecognizer;
@@ -50,10 +55,11 @@ public class MainActivity extends AppCompatActivity
     private Intent speechRecognizerIntent;
     private String numbersRegex,contactRegex;
     private ChatAdapter chatAdapter;
-    private List<Chat> mChat;
+    private ArrayList<Chat> mChat;
     private RecyclerView recyclerView;
     private LinearLayoutManager linearLayoutManager;
     private boolean waitingForInput;
+    private PreferenceUtils preferenceUtils;
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -72,9 +78,6 @@ public class MainActivity extends AppCompatActivity
         linearLayoutManager=new LinearLayoutManager(MainActivity.this);
         linearLayoutManager.setStackFromEnd(true);
         recyclerView.setLayoutManager(linearLayoutManager);
-        mChat=new ArrayList<>();
-        chatAdapter=new ChatAdapter(MainActivity.this,mChat);
-        recyclerView.setAdapter(chatAdapter);
         hasCameraFlash = getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH);
         speechOpt.setOnClickListener(v->{
             if(speechRecognitionLayout.getVisibility()==View.INVISIBLE)
@@ -150,6 +153,20 @@ public class MainActivity extends AppCompatActivity
         else
             checkPermission();
         waitingForInput=false;
+        preferenceUtils=PreferenceUtils.getInstance(getApplicationContext());
+        Handler handler=new Handler();
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run()
+            {
+                if(preferenceUtils.getChatList()==null)
+                    mChat=new ArrayList<>();
+                else
+                    mChat=preferenceUtils.getChatList();
+                chatAdapter=new ChatAdapter(MainActivity.this,mChat);
+                recyclerView.setAdapter(chatAdapter);
+            }
+        },0);
     }
     private String preprocessCommand(String cmd)
     {
@@ -287,6 +304,14 @@ public class MainActivity extends AppCompatActivity
         {
 
         }
+        else if(cmd.contains("cleartheconversation"))
+        {
+            if(mChat!=null)
+            {
+                mChat.clear();
+                receiveMessage("The Preserved Conversations were cleared successfully !",false);
+            }
+        }
         return true;
     }
     private boolean callByContactName(String ct)
@@ -407,6 +432,49 @@ public class MainActivity extends AppCompatActivity
         if(needsInput)
         {
             waitingForInput=true;
+        }
+    }
+
+    @Override
+    protected void onStop()
+    {
+        super.onStop();
+        if(mChat!=null)
+        {
+            Iterator<Chat> iterator=mChat.iterator();
+            SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss",Locale.getDefault());
+            String todayS = formatter.format(new Date());
+            Date today;
+            try {
+                today= formatter.parse(todayS);
+            }
+            catch (Exception e)
+            {
+                e.printStackTrace();
+                return;
+            }
+            if(today==null)
+                return;
+            while(iterator.hasNext())
+            {
+                Chat c = iterator.next();
+                Date date;
+                try {
+                    date = formatter.parse(c.getDateOfSending());
+                }
+                catch(Exception e)
+                {
+                    e.printStackTrace();
+                    break;
+                }
+                if(date==null)
+                    continue;
+                long diffTime=today.getTime()-date.getTime();
+                long diffDays=(diffTime/(1000*60*60*24))%365;
+                if(diffDays>7)
+                    iterator.remove();
+            }
+            preferenceUtils.setChatList(mChat);
         }
     }
     @Override

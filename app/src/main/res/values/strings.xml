@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">Proton</string>
     <string name="type_a_command">Type a Command</string>
+    <string name="sample">Sample</string>
+    <string name="you"><b>You</b></string>
+    <string name="proton"><b>Proton</b></string>
 </resources>

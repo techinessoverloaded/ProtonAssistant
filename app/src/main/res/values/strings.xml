@@ -4,4 +4,6 @@
     <string name="sample">Sample</string>
     <string name="you"><b>You</b></string>
     <string name="proton"><b>Proton</b></string>
+    <string name="listening_to_you">Listening to you...</string>
+    <string name="cancel">Cancel</string>
 </resources>

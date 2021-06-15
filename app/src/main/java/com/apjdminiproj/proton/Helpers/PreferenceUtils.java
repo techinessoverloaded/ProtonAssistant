@@ -1,7 +1,7 @@
 package com.apjdminiproj.proton.Helpers;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
+import androidx.preference.PreferenceManager;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
@@ -15,7 +15,7 @@ public class PreferenceUtils
     private static PreferenceUtils instance=null;
     private PreferenceUtils(Context context)
     {
-        sharedPreferences= PreferenceManager.getDefaultSharedPreferences(context);
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
     }
     public static synchronized PreferenceUtils getInstance(Context con)
     {

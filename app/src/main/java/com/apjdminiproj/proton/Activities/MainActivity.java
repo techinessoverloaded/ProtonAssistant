@@ -1,16 +1,20 @@
 package com.apjdminiproj.proton.Activities;
 
-import androidx.annotation.Nullable;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.Manifest;
-import android.app.PendingIntent;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.drawable.ColorDrawable;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraManager;
 import android.net.Uri;
@@ -19,8 +23,12 @@ import android.os.Handler;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.speech.RecognizerIntent;
+import android.speech.tts.UtteranceProgressListener;
 import android.telephony.SmsManager;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -29,7 +37,6 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.*;
@@ -45,8 +52,8 @@ import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity
 {
-    private ConstraintLayout inputLayout, optLayout, speechRecognitionLayout;
-    private ImageView speechOpt, textOpt, sendBtn;
+    private ConstraintLayout inputLayout;
+    private ImageView sendBtn;
     private EditText cmdInput;
     private String command,smsRec;
     private boolean hasCameraFlash;
@@ -60,18 +67,16 @@ public class MainActivity extends AppCompatActivity
     private LinearLayoutManager linearLayoutManager;
     private boolean waitingForInput;
     private PreferenceUtils preferenceUtils;
+    private AlertDialog SpeechRecognitionDialog;
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         inputLayout = findViewById(R.id.input_layout);
-        optLayout = findViewById(R.id.speechTextOptLayout);
-        speechOpt = findViewById(R.id.speechInputOpt);
-        textOpt = findViewById(R.id.textInputOpt);
         sendBtn = findViewById(R.id.send_button);
         cmdInput = findViewById(R.id.cmdInput);
-        speechRecognitionLayout=findViewById(R.id.speechRecogLayout);
+        sendBtn.setTag(R.drawable.ic_speech);
         numbersRegex="\\d{10}";
         recyclerView=findViewById(R.id.recyclerView);
         recyclerView.setHasFixedSize(true);
@@ -79,73 +84,78 @@ public class MainActivity extends AppCompatActivity
         linearLayoutManager.setStackFromEnd(true);
         recyclerView.setLayoutManager(linearLayoutManager);
         hasCameraFlash = getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH);
-        speechOpt.setOnClickListener(v->{
-            if(speechRecognitionLayout.getVisibility()==View.INVISIBLE)
-            {
-                optLayout.setVisibility(View.GONE);
-                speechRecognitionLayout.setVisibility(View.VISIBLE);
-                textToSpeech.speak("Listening to you",TextToSpeech.QUEUE_FLUSH,null,"ListeningToYou");
-                try
-                {
-                    Thread.sleep(2200);
-                }
-                catch (InterruptedException e)
-                {
-                    e.printStackTrace();
-                }
-                speechRecognizer.startListening(speechRecognizerIntent);
-            }
-        });
-        textOpt.setOnClickListener(v -> {
-            if (inputLayout.getVisibility() == View.INVISIBLE) {
-                optLayout.setVisibility(View.GONE);
-                inputLayout.setVisibility(View.VISIBLE);
-                cmdInput.requestFocus();
-            }
-        });
         sendBtn.setOnClickListener(v -> {
-            command = cmdInput.getText().toString();
-            if (command.isEmpty() || command == null) {
-                Toast.makeText(this, "No command was entered to be executed !", Toast.LENGTH_LONG).show();
-            }
-            else
-                {
-                    if(!waitingForInput)
-                    {
+            if((Integer)sendBtn.getTag()==R.drawable.ic_send) {
+                command = cmdInput.getText().toString();
+                if (command.isEmpty() || command == null) {
+                    Toast.makeText(this, "No command was entered to be executed !", Toast.LENGTH_LONG).show();
+                } else {
+                    if (!waitingForInput) {
                         sendMessage(command, false);
                         executeCommand(preprocessCommand(command));
                         cmdInput.setText(null);
                         command = null;
-                    }
-                    else
-                    {
+                    } else {
                         sendMessage(command, true);
                         cmdInput.setText(null);
                         command = null;
                     }
-                    linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount()-1,0);
+                    linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount() - 1, 0);
                     recyclerView.post(() -> {
-                        View target=linearLayoutManager.findViewByPosition(chatAdapter.getItemCount()-1);
-                        if(target!=null)
-                        {
-                            int offset=recyclerView.getMeasuredHeight()-target.getMeasuredHeight();
-                            linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount()-1,offset);
+                        View target = linearLayoutManager.findViewByPosition(chatAdapter.getItemCount() - 1);
+                        if (target != null) {
+                            int offset = recyclerView.getMeasuredHeight() - target.getMeasuredHeight();
+                            linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount() - 1, offset);
                         }
                     });
+                }
+            }
+            else
+            {
+                textToSpeech.speak("Listening to you",TextToSpeech.QUEUE_FLUSH,null,"ListeningToYou");
             }
         });
         if(!Settings.System.canWrite(this))
         {
-            final AlertDialog.Builder builder2=new AlertDialog.Builder(MainActivity.this);
+            final AlertDialog.Builder builder2=new AlertDialog.Builder(MainActivity.this,R.style.AlertDialogTheme);
+            final ActivityResultLauncher<Intent> launcher = registerForActivityResult(
+                    new ActivityResultContracts.StartActivityForResult(),
+                    result -> {
+                        if(result.getResultCode() == Activity.RESULT_OK)
+                        {
+                            if(Settings.System.canWrite(MainActivity.this))
+                                Log.d("ProtectedPermissions","Write Settings Permission granted");
+                            else
+                            {
+                                StringBuilder message = new StringBuilder("The app has not been granted the following permission(s):\n\n");
+                                message.append(Manifest.permission.WRITE_SETTINGS);
+                                message.append("\n");
+                                message.append("\nHence, it cannot function properly." +
+                                        "\nPlease consider granting it these permissions in the Phone Settings.");
+                                final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this,R.style.AlertDialogTheme);
+                                builder.setTitle("Permission Required")
+                                        .setMessage(message)
+                                        .setPositiveButton("OK", (dialog, id) -> {
+                                            dialog.cancel();
+                                            MainActivity.this.finish();
+                                        });
+                                final AlertDialog alert = builder.create();
+                                alert.show();
+                            }
+                            checkPermission();
+                        }
+                    }
+            );
             builder2.setTitle("Needs Protected Permission").setCancelable(false)
                     .setMessage("This app needs the following permission to run properly:\n"
                             +Manifest.permission.WRITE_SETTINGS+"\n You will now be redirected to the Settings to grant the Permission")
                     .setPositiveButton("OK", (dialog,which) -> {
                         Intent intent=new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
                         intent.setData(Uri.parse("package:"+getPackageName()));
-                        startActivityForResult(intent,2);
+                        launcher.launch(intent);
                     }).setNegativeButton("CANCEL",(dialog,which)->{
                 dialog.cancel();
+                MainActivity.this.finish();
             });
             final AlertDialog alertd=builder2.create();
             alertd.show();
@@ -154,19 +164,38 @@ public class MainActivity extends AppCompatActivity
             checkPermission();
         waitingForInput=false;
         preferenceUtils=PreferenceUtils.getInstance(getApplicationContext());
-        Handler handler=new Handler();
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run()
-            {
-                if(preferenceUtils.getChatList()==null)
-                    mChat=new ArrayList<>();
-                else
-                    mChat=preferenceUtils.getChatList();
-                chatAdapter=new ChatAdapter(MainActivity.this,mChat);
-                recyclerView.setAdapter(chatAdapter);
-            }
+        Handler handler=new Handler(getMainLooper());
+        handler.postDelayed(() -> {
+            if(preferenceUtils.getChatList()==null)
+                mChat=new ArrayList<>();
+            else
+                mChat=preferenceUtils.getChatList();
+            chatAdapter=new ChatAdapter(MainActivity.this,mChat);
+            recyclerView.setAdapter(chatAdapter);
         },0);
+        cmdInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count)
+            {
+                if (s == null || s.length() == 0) {
+                    sendBtn.setImageDrawable(ContextCompat.getDrawable(getApplicationContext(), R.drawable.ic_speech));
+                    sendBtn.setTag(R.drawable.ic_speech);
+                }
+                else
+                    {
+                        sendBtn.setImageDrawable(ContextCompat.getDrawable(getApplicationContext(), R.drawable.ic_send));
+                        sendBtn.setTag(R.drawable.ic_send);
+                    }
+            }
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
     }
     private String preprocessCommand(String cmd)
     {
@@ -309,7 +338,7 @@ public class MainActivity extends AppCompatActivity
             if(mChat!=null)
             {
                 mChat.clear();
-                receiveMessage("The Preserved Conversations were cleared successfully !",false);
+                receiveMessage("The Preserved Messages were cleared successfully !",false);
             }
         }
         return true;
@@ -345,7 +374,7 @@ public class MainActivity extends AppCompatActivity
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,Manifest.permission.RECORD_AUDIO);
     }
     @Override
-    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults)
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
     {
         super.onRequestPermissionsResult(requestCode,permissions,grantResults);
         switch (requestCode)
@@ -386,10 +415,13 @@ public class MainActivity extends AppCompatActivity
                         message.append("\nHence, it cannot function properly." +
                                 "\nPlease consider granting it these permissions in the Phone Settings.");
 
-                        final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                        final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this,R.style.AlertDialogTheme);
                         builder.setTitle("Permission Required")
                                 .setMessage(message)
-                                .setPositiveButton("OK", (dialog, id) -> dialog.cancel());
+                                .setPositiveButton("OK", (dialog, id) -> {
+                                    dialog.cancel();
+                                    MainActivity.this.finish();
+                                });
                         final AlertDialog alert = builder.create();
                         alert.show();
                     }
@@ -405,13 +437,14 @@ public class MainActivity extends AppCompatActivity
         if(givingInput)
         {
             String current=mChat.get(mChat.size()-1).getMessage();
+            String preprocessedCurrent=preprocessCommand(current);
             String previous=mChat.get(mChat.size()-2).getMessage();
             if(previous.equals("Enter the number of the recipient"))
             {
                 Pattern num=Pattern.compile(numbersRegex);
-                if(num.matcher(current).matches())
+                if(num.matcher(preprocessedCurrent).matches())
                 {
-                    sendSMS(current);
+                    sendSMS(preprocessedCurrent);
                 }
                 else
                 {
@@ -426,57 +459,17 @@ public class MainActivity extends AppCompatActivity
     }
     private void receiveMessage(String message,boolean needsInput)
     {
+        textToSpeech.speak(message,TextToSpeech.QUEUE_FLUSH,null,"receiveMessage:"+message);
         Chat newMsg = new Chat(message, Chat.MSG_TYPE_LEFT);
         mChat.add(newMsg);
         chatAdapter.notifyDataSetChanged();
+        scrollToRecentMessage();
         if(needsInput)
         {
             waitingForInput=true;
         }
     }
 
-    @Override
-    protected void onStop()
-    {
-        super.onStop();
-        if(mChat!=null)
-        {
-            Iterator<Chat> iterator=mChat.iterator();
-            SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss",Locale.getDefault());
-            String todayS = formatter.format(new Date());
-            Date today;
-            try {
-                today= formatter.parse(todayS);
-            }
-            catch (Exception e)
-            {
-                e.printStackTrace();
-                return;
-            }
-            if(today==null)
-                return;
-            while(iterator.hasNext())
-            {
-                Chat c = iterator.next();
-                Date date;
-                try {
-                    date = formatter.parse(c.getDateOfSending());
-                }
-                catch(Exception e)
-                {
-                    e.printStackTrace();
-                    break;
-                }
-                if(date==null)
-                    continue;
-                long diffTime=today.getTime()-date.getTime();
-                long diffDays=(diffTime/(1000*60*60*24))%365;
-                if(diffDays>7)
-                    iterator.remove();
-            }
-            preferenceUtils.setChatList(mChat);
-        }
-    }
     @Override
     protected void onResume()
     {
@@ -488,6 +481,28 @@ public class MainActivity extends AppCompatActivity
                 if (status == TextToSpeech.SUCCESS)
                 {
                     textToSpeech.setLanguage(Locale.UK);
+                }
+            });
+            textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override
+                public void onStart(String utteranceId)
+                {
+
+                }
+
+                @Override
+                public void onDone(String utteranceId)
+                {
+                    if(utteranceId.equals("ListeningToYou"))
+                    {
+                        runOnUiThread(() -> showSpeechRecognitionDialog());
+                    }
+                }
+
+                @Override
+                public void onError(String utteranceId)
+                {
+
                 }
             });
         }
@@ -505,7 +520,7 @@ public class MainActivity extends AppCompatActivity
                     @Override
                     public void onReadyForSpeech(Bundle params)
                     {
-                        Toast.makeText(MainActivity.this,"Listening to you...",Toast.LENGTH_LONG).show();
+
                     }
 
                     @Override
@@ -532,13 +547,14 @@ public class MainActivity extends AppCompatActivity
                     }
 
                     @Override
-                    public void onError(int error) {
-                        if (error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
-                        {
+                    public void onError(int error)
+                    {
+                        if(error==SpeechRecognizer.ERROR_SPEECH_TIMEOUT||error==SpeechRecognizer.ERROR_NO_MATCH) {
                             textToSpeech.speak("No Response try again",
-                                    TextToSpeech.QUEUE_FLUSH,null,"NoResponse");
-                            speechRecognitionLayout.setVisibility(View.GONE);
-                            optLayout.setVisibility(View.VISIBLE);
+                                    TextToSpeech.QUEUE_ADD, null, "NoResponse");
+                            SpeechRecognitionDialog.dismiss();
+                            Toast.makeText(MainActivity.this, "No response ! Try again !", Toast.LENGTH_LONG)
+                                    .show();
                         }
                     }
 
@@ -547,31 +563,20 @@ public class MainActivity extends AppCompatActivity
                     {
                         ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                         String command = matches.get(0);
-                        if (command.isEmpty())
+                        Log.d("recognitionResults", command);
+                        SpeechRecognitionDialog.dismiss();
+                        if(waitingForInput)
                         {
-                            textToSpeech.speak("No Response try again",
-                                    TextToSpeech.QUEUE_FLUSH,null,"NoResponse");
-                            speechRecognitionLayout.setVisibility(View.GONE);
-                            optLayout.setVisibility(View.VISIBLE);
+                            sendMessage(command,true);
                         }
                         else
                             {
-                            Log.d("recognitionResults", command);
-                            sendMessage(command,false);
-                            executeCommand(preprocessCommand(command));
-                            Log.d("preprocessedCmd",preprocessCommand(command));
-                                linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount()-1,0);
-                                recyclerView.post(() -> {
-                                    View target=linearLayoutManager.findViewByPosition(chatAdapter.getItemCount()-1);
-                                    if(target!=null)
-                                    {
-                                        int offset=recyclerView.getMeasuredHeight()-target.getMeasuredHeight();
-                                        linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount()-1,offset);
-                                    }
-                                });
-                        }
+                                sendMessage(command, false);
+                                executeCommand(preprocessCommand(command));
+                            }
+                            Log.d("preprocessedCmd", preprocessCommand(command));
+                            scrollToRecentMessage();
                     }
-
                     @Override
                     public void onPartialResults(Bundle partialResults) {
 
@@ -587,10 +592,48 @@ public class MainActivity extends AppCompatActivity
             {
                 Toast.makeText(this, "Speech Recognition is unavailable in this Device! You can't use Voice Mode!"
                         , Toast.LENGTH_LONG).show();
-                speechRecognitionLayout.setVisibility(View.GONE);
+                SpeechRecognitionDialog.dismiss();
                 inputLayout.setVisibility(View.VISIBLE);
             }
         }
+    }
+
+    private void scrollToRecentMessage()
+    {
+        linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount() - 1, 0);
+        recyclerView.post(() -> {
+            View target = linearLayoutManager.findViewByPosition(chatAdapter.getItemCount() - 1);
+            if (target != null) {
+                int offset = recyclerView.getMeasuredHeight() - target.getMeasuredHeight();
+                linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount() - 1, offset);
+            }
+        });
+    }
+
+    private void showSpeechRecognitionDialog()
+    {
+        if(SpeechRecognitionDialog==null)
+        {
+            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+            View view = LayoutInflater.from(this).inflate(R.layout.layout_speechrecognition,findViewById(R.id.speechRecognitionLayout));
+            builder.setView(view);
+            SpeechRecognitionDialog = builder.create();
+            SpeechRecognitionDialog.setCancelable(false);
+            SpeechRecognitionDialog.setOnShowListener(dialog ->
+                    speechRecognizer.startListening(speechRecognizerIntent));
+            SpeechRecognitionDialog.setOnDismissListener(dialog -> {
+                speechRecognizer.stopListening();
+            });
+            if (SpeechRecognitionDialog.getWindow() != null)
+            {
+                SpeechRecognitionDialog.getWindow().setBackgroundDrawable(new ColorDrawable(0));
+            }
+            view.findViewById(R.id.cancelSpeechBut).setOnClickListener(v->{
+                SpeechRecognitionDialog.dismiss();
+                textToSpeech.stop();
+            });
+        }
+        SpeechRecognitionDialog.show();
     }
     @Override
     protected void onPause()
@@ -603,40 +646,48 @@ public class MainActivity extends AppCompatActivity
         {
             speechRecognizer.stopListening();
         }
+        if(mChat!=null)
+        {
+            Iterator<Chat> iterator = mChat.iterator();
+            SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault());
+            String todayS = formatter.format(new Date());
+            Date today;
+            try
+            {
+                today = formatter.parse(todayS);
+            } catch (Exception e) {
+                    e.printStackTrace();
+                    return;
+                }
+                if (today == null)
+                    return;
+                while (iterator.hasNext()) {
+                    Chat c = iterator.next();
+                    Date date;
+                    try {
+                        date = formatter.parse(c.getDateOfSending());
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        break;
+                    }
+                    if (date == null)
+                        continue;
+                    long diffTime = today.getTime() - date.getTime();
+                    long diffDays = (diffTime / (1000 * 60 * 60 * 24)) % 365;
+                    if (diffDays > 7)
+                        iterator.remove();
+                }
+                preferenceUtils.setChatList(mChat);
+        }
         super.onPause();
     }
-
     @Override
     protected void onDestroy()
     {
-        textToSpeech.shutdown();
-        speechRecognizer.destroy();
+        if(textToSpeech!=null)
+            textToSpeech.shutdown();
+        if(speechRecognizer!=null)
+            speechRecognizer.destroy();
         super.onDestroy();
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data)
-    {
-        super.onActivityResult(requestCode, resultCode, data);
-        if(requestCode==2)
-        {
-            if(Settings.System.canWrite(MainActivity.this))
-                Log.d("ProtectedPermissions","Write Settings Permission granted");
-            else
-            {
-                StringBuilder message = new StringBuilder("The app has not been granted the following permission(s):\n\n");
-                message.append(Manifest.permission.WRITE_SETTINGS);
-                message.append("\n");
-                message.append("\nHence, it cannot function properly." +
-                        "\nPlease consider granting it these permissions in the Phone Settings.");
-                final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-                builder.setTitle("Permission Required")
-                        .setMessage(message)
-                        .setPositiveButton("OK", (dialog, id) -> dialog.cancel());
-                final AlertDialog alert = builder.create();
-                alert.show();
-            }
-            checkPermission();
-        }
     }
 }

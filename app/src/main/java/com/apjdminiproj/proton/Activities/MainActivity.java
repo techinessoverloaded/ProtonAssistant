@@ -11,9 +11,12 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.Manifest;
 import android.app.Activity;
+import android.app.SearchManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.drawable.ColorDrawable;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraManager;
@@ -37,6 +40,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.*;
@@ -94,11 +98,9 @@ public class MainActivity extends AppCompatActivity
                         sendMessage(command, false);
                         executeCommand(preprocessCommand(command));
                         cmdInput.setText(null);
-                        command = null;
                     } else {
                         sendMessage(command, true);
                         cmdInput.setText(null);
-                        command = null;
                     }
                     linearLayoutManager.scrollToPositionWithOffset(chatAdapter.getItemCount() - 1, 0);
                     recyclerView.post(() -> {
@@ -230,11 +232,31 @@ public class MainActivity extends AppCompatActivity
                     return false;
                 }
         }
-        else if (cmd.contains("google")){
-
+        else if (cmd.contains("googlethis"))
+        {
+            command=command.substring(command.toLowerCase().indexOf("google this"));
+            String searchQuery=command.substring(command.toLowerCase().indexOf("google this")+11).trim();
+            if(searchQuery.length()==0||searchQuery==null)
+            {
+                receiveMessage("Invalid search term",false);
+                return false;
+            }
+            else
+                {
+                    Intent intent=new Intent(Intent.ACTION_WEB_SEARCH);
+                intent.putExtra(SearchManager.QUERY, searchQuery);
+                receiveMessage("Opening Google", false);
+                startActivity(intent);
+            }
         }
-        else if(cmd.contains("play")){
-
+        else if(cmd.contains("playthis"))
+        {
+            String ytPackageName="com.google.android.youtube";
+            Intent intent=new Intent(Intent.ACTION_VIEW,Uri.parse("https://www.youtube.com/results?search_query=hey"));
+            intent.setComponent(new ComponentName(ytPackageName,ytPackageName+".PlayerActivity"));
+            List<ResolveInfo> resolveInfo=getPackageManager().queryIntentActivities(intent,0);
+            if(resolveInfo.size()>0)
+                startActivity(intent);
         }
         else if(cmd.contains("ping"))
         {
@@ -341,6 +363,7 @@ public class MainActivity extends AppCompatActivity
                 receiveMessage("The Preserved Messages were cleared successfully !",false);
             }
         }
+        command=null;
         return true;
     }
     private boolean callByContactName(String ct)
@@ -504,6 +527,12 @@ public class MainActivity extends AppCompatActivity
                 {
 
                 }
+
+                @Override
+                public void onError(String utteranceId,int errorCode)
+                {
+
+                }
             });
         }
         if (speechRecognizer == null)
@@ -562,7 +591,7 @@ public class MainActivity extends AppCompatActivity
                     public void onResults(Bundle results)
                     {
                         ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                        String command = matches.get(0);
+                        command = matches.get(0);
                         Log.d("recognitionResults", command);
                         SpeechRecognitionDialog.dismiss();
                         if(waitingForInput)

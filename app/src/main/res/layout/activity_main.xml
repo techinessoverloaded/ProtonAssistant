@@ -53,6 +53,7 @@
             android:hint="@string/type_a_command"
             android:background="@null"
             android:padding="12dp"
+                android:inputType="textCapSentences"
             />
         </LinearLayout>
         <ImageView

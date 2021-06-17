@@ -52,60 +52,28 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder>
         if(chat.getMessageType()==MSG_TYPE_LEFT)
         {
             holder.showMessageLeft.setText(chat.getMessage());
-            ClipboardManager clipboardManager=(ClipboardManager)mContext.getSystemService(Context.CLIPBOARD_SERVICE);
-            if(clipboardManager==null)
-                return;
-            ClipData clipData=ClipData.newPlainText("messageLeft:"+chat.getDateOfSending(),chat.getMessage());
-            bounceAnimation.setAnimationListener(new Animation.AnimationListener() {
-                @Override
-                public void onAnimationStart(Animation animation)
-                {
-                    clipboardManager.setPrimaryClip(clipData);
-                }
-
-                @Override
-                public void onAnimationEnd(Animation animation)
-                {
-                    Toast.makeText(mContext,"Message copied to Clipboard successfully !",Toast.LENGTH_LONG).show();
-                }
-
-                @Override
-                public void onAnimationRepeat(Animation animation) {
-
-                }
-            });
-            holder.showMessageLeft.setOnLongClickListener(v -> {
-                holder.itemView.startAnimation(bounceAnimation);
+            holder.itemView.findViewById(R.id.chatItemLeft).setOnLongClickListener(v -> {
+                ClipboardManager clipboardManager=(ClipboardManager)mContext.getSystemService(Context.CLIPBOARD_SERVICE);
+                if(clipboardManager==null)
+                    return false;
+                holder.itemView.findViewById(R.id.chatItemLeft).startAnimation(bounceAnimation);
+                ClipData clipData=ClipData.newPlainText("messageLeft:"+chat.getDateOfSending(),chat.getMessage());
+                clipboardManager.setPrimaryClip(clipData);
+                Toast.makeText(mContext,"Message copied to Clipboard successfully !",Toast.LENGTH_LONG).show();
                 return true;
             });
         }
         else
         {
             holder.showMessageRight.setText(chat.getMessage());
-            ClipboardManager clipboardManager=(ClipboardManager)mContext.getSystemService(Context.CLIPBOARD_SERVICE);
-            if(clipboardManager==null)
-                return;
-            ClipData clipData=ClipData.newPlainText("messageRight:"+chat.getDateOfSending(),chat.getMessage());
-            bounceAnimation.setAnimationListener(new Animation.AnimationListener() {
-                @Override
-                public void onAnimationStart(Animation animation)
-                {
-                    clipboardManager.setPrimaryClip(clipData);
-                }
-
-                @Override
-                public void onAnimationEnd(Animation animation)
-                {
-                    Toast.makeText(mContext,"Message copied to Clipboard successfully !",Toast.LENGTH_LONG).show();
-                }
-
-                @Override
-                public void onAnimationRepeat(Animation animation) {
-
-                }
-            });
-            holder.showMessageRight.setOnLongClickListener(v -> {
-                holder.itemView.startAnimation(bounceAnimation);
+            holder.itemView.findViewById(R.id.chatItemRight).setOnLongClickListener(v -> {
+                ClipboardManager clipboardManager=(ClipboardManager)mContext.getSystemService(Context.CLIPBOARD_SERVICE);
+                if(clipboardManager==null)
+                    return false;
+                holder.itemView.findViewById(R.id.chatItemRight).startAnimation(bounceAnimation);
+                ClipData clipData=ClipData.newPlainText("messageRight:"+chat.getDateOfSending(),chat.getMessage());
+                clipboardManager.setPrimaryClip(clipData);
+                Toast.makeText(mContext,"Message copied to Clipboard successfully !",Toast.LENGTH_LONG).show();
                 return true;
             });
         }

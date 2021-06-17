@@ -242,21 +242,29 @@ public class MainActivity extends AppCompatActivity
                 return false;
             }
             else
-                {
-                    Intent intent=new Intent(Intent.ACTION_WEB_SEARCH);
+                { Intent intent=new Intent(Intent.ACTION_WEB_SEARCH);
                 intent.putExtra(SearchManager.QUERY, searchQuery);
-                receiveMessage("Opening Google", false);
+                receiveMessage("Opening Google App", false);
                 startActivity(intent);
+                return true;
             }
         }
         else if(cmd.contains("playthis"))
         {
-            String ytPackageName="com.google.android.youtube";
-            Intent intent=new Intent(Intent.ACTION_VIEW,Uri.parse("https://www.youtube.com/results?search_query=hey"));
-            intent.setComponent(new ComponentName(ytPackageName,ytPackageName+".PlayerActivity"));
-            List<ResolveInfo> resolveInfo=getPackageManager().queryIntentActivities(intent,0);
-            if(resolveInfo.size()>0)
+            command=command.substring(command.toLowerCase().indexOf("play this"));
+            String searchQuery=command.substring(command.toLowerCase().indexOf("play this")+9).trim();
+            if(searchQuery.length()==0||searchQuery==null)
+            {
+                receiveMessage("Incomplete command",false);
+                return false;
+            }
+            else
+            {
+                Intent intent=new Intent(Intent.ACTION_VIEW,Uri.parse("https://www.youtube.com/results?search_query="+searchQuery));
+                receiveMessage("Opening YouTube App", false);
                 startActivity(intent);
+                return true;
+            }
         }
         else if(cmd.contains("ping"))
         {

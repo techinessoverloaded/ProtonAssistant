@@ -1,6 +1,8 @@
 package com.apjdminiproj.proton.Activities;
 
 
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
@@ -13,15 +15,20 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.SearchManager;
 import android.content.ComponentName;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.graphics.Bitmap;
 import android.graphics.drawable.ColorDrawable;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.provider.Settings;
@@ -36,13 +43,20 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.*;
 import com.apjdminiproj.proton.Helpers.Chat;
 import com.apjdminiproj.proton.Helpers.ChatAdapter;
@@ -72,6 +86,8 @@ public class MainActivity extends AppCompatActivity
     private boolean waitingForInput;
     private PreferenceUtils preferenceUtils;
     private AlertDialog SpeechRecognitionDialog;
+    private ActivityResultLauncher<Intent> launcherForPicture;
+    private Intent originalIntent;
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -87,6 +103,7 @@ public class MainActivity extends AppCompatActivity
         linearLayoutManager=new LinearLayoutManager(MainActivity.this);
         linearLayoutManager.setStackFromEnd(true);
         recyclerView.setLayoutManager(linearLayoutManager);
+        originalIntent=getIntent();
         hasCameraFlash = getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH);
         sendBtn.setOnClickListener(v -> {
             if((Integer)sendBtn.getTag()==R.drawable.ic_send) {
@@ -167,14 +184,14 @@ public class MainActivity extends AppCompatActivity
         waitingForInput=false;
         preferenceUtils=PreferenceUtils.getInstance(getApplicationContext());
         Handler handler=new Handler(getMainLooper());
-        handler.postDelayed(() -> {
+        handler.post(() -> {
             if(preferenceUtils.getChatList()==null)
                 mChat=new ArrayList<>();
             else
                 mChat=preferenceUtils.getChatList();
             chatAdapter=new ChatAdapter(MainActivity.this,mChat);
             recyclerView.setAdapter(chatAdapter);
-        },0);
+        });
         cmdInput.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -196,6 +213,39 @@ public class MainActivity extends AppCompatActivity
             }
             @Override
             public void afterTextChanged(Editable s) {
+            }
+        });
+        launcherForPicture=registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), new ActivityResultCallback<ActivityResult>() {
+            @Override
+            public void onActivityResult(ActivityResult result)
+            {
+                if(result.getResultCode()==RESULT_OK)
+                {
+                    if(result.getData().getExtras()!=null)
+                    {
+                        Bitmap picture = (Bitmap) result.getData().getExtras().get("data");
+                        startActivity(originalIntent);
+                        try {
+                            String path = saveImage(picture,"ProtonCapture"+Calendar.getInstance().getTimeInMillis());
+                            receiveMessage("Stored the pic at "+path.replaceFirst("/","")+" successfully !",false);
+                        }
+                        catch (IOException e)
+                        {
+                            e.printStackTrace();
+                            receiveMessage("Failed to save the pic ! Try again !",false);
+                        }
+                    }
+                    else
+                    {
+                        startActivity(originalIntent);
+                        receiveMessage("Failed to save the pic ! Try again !",false);
+                    }
+                }
+                else
+                {
+                    startActivity(originalIntent);
+                    receiveMessage("Failed to capture a pic ! Try again !",false);
+                }
             }
         });
     }
@@ -282,7 +332,7 @@ public class MainActivity extends AppCompatActivity
         {
             Intent intent=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
             receiveMessage("Opening Back Cam !",false);
-            startActivity(intent);
+            launcherForPicture.launch(intent);
         }
         else if(cmd.contains("turnonflashlight"))
         {
@@ -373,6 +423,29 @@ public class MainActivity extends AppCompatActivity
         }
         command=null;
         return true;
+    }
+    private String saveImage(Bitmap bitmap,String name) throws IOException
+    {
+        OutputStream fos;
+        String path;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentResolver resolver = getContentResolver();
+            ContentValues contentValues = new ContentValues();
+            contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name + ".jpg");
+            contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpg");
+            contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES);
+            Uri imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues);
+            fos = resolver.openOutputStream(Objects.requireNonNull(imageUri));
+            path=imageUri.getPath();
+        } else {
+            String imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString();
+            File image = new File(imagesDir,name+".jpg");
+            fos = new FileOutputStream(image);
+            path=image.getAbsolutePath();
+        }
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+        Objects.requireNonNull(fos).close();
+        return path;
     }
     private boolean callByContactName(String ct)
     {

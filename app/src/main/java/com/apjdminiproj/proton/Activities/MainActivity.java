@@ -86,19 +86,16 @@ public class MainActivity extends AppCompatActivity
     private boolean waitingForInput;
     private PreferenceUtils preferenceUtils;
     private AlertDialog SpeechRecognitionDialog;
-    private ActivityResultLauncher<Intent> launcherForPicture;
+    private ActivityResultLauncher<Intent> launcherForPicture,launcherForSelfie;
     private Intent originalIntent;
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        inputLayout = findViewById(R.id.input_layout);
-        sendBtn = findViewById(R.id.send_button);
-        cmdInput = findViewById(R.id.cmdInput);
-        sendBtn.setTag(R.drawable.ic_speech);
-        numbersRegex="\\d{10}";
         recyclerView=findViewById(R.id.recyclerView);
+        sendBtn=findViewById(R.id.send_button);
+        cmdInput=findViewById(R.id.cmdInput);
         recyclerView.setHasFixedSize(true);
         linearLayoutManager=new LinearLayoutManager(MainActivity.this);
         linearLayoutManager.setStackFromEnd(true);
@@ -248,6 +245,39 @@ public class MainActivity extends AppCompatActivity
                 }
             }
         });
+        launcherForSelfie=registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), new ActivityResultCallback<ActivityResult>() {
+            @Override
+            public void onActivityResult(ActivityResult result)
+            {
+                if(result.getResultCode()==RESULT_OK)
+                {
+                    if(result.getData().getExtras()!=null)
+                    {
+                        Bitmap picture = (Bitmap) result.getData().getExtras().get("data");
+                        startActivity(originalIntent);
+                        try {
+                            String path = saveImage(picture,"ProtonSelfie"+Calendar.getInstance().getTimeInMillis());
+                            receiveMessage("Stored the Selfie pic at "+path.replaceFirst("/","")+" successfully !",false);
+                        }
+                        catch (IOException e)
+                        {
+                            e.printStackTrace();
+                            receiveMessage("Failed to save the Selfie pic ! Try again !",false);
+                        }
+                    }
+                    else
+                    {
+                        startActivity(originalIntent);
+                        receiveMessage("Failed to save the Selfie pic ! Try again !",false);
+                    }
+                }
+                else
+                {
+                    startActivity(originalIntent);
+                    receiveMessage("Failed to capture a Selfie pic ! Try again !",false);
+                }
+            }
+        });
     }
     private String preprocessCommand(String cmd)
     {
@@ -323,14 +353,14 @@ public class MainActivity extends AppCompatActivity
         else if(cmd.contains("takeaselfie"))
         {
             Intent intent=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-            intent.putExtra("android.intent.extras.LENS_FACING_FRONT", 1);
-            intent.putExtra("android.intent.extra.USE_FRONT_CAMERA", true);
+            intent.putExtra("android.intent.extras.CAMERA_FACING", 1);
             receiveMessage("Opening Selfie Cam ! Say Cheese !",false);
-            startActivity(intent);
+            launcherForSelfie.launch(intent);
         }
         else if(cmd.contains("takeapicture"))
         {
             Intent intent=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            intent.putExtra("android.intent.extras.CAMERA_FACING", 0);
             receiveMessage("Opening Back Cam !",false);
             launcherForPicture.launch(intent);
         }

@@ -607,7 +607,7 @@ public class MainActivity extends AppCompatActivity
     {
         PermissionHelper permissionHelper=new PermissionHelper();
         permissionHelper.checkAndRequestPermissions(this,Manifest.permission.SEND_SMS,
-                Manifest.permission.CALL_PHONE,Manifest.permission.READ_CONTACTS,Manifest.permission.CAMERA,
+                Manifest.permission.CALL_PHONE,Manifest.permission.CAMERA,
                 Manifest.permission.WRITE_EXTERNAL_STORAGE,Manifest.permission.RECORD_AUDIO);
     }
     @Override

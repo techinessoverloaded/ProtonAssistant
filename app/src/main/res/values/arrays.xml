@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="conversations">
+        <item>I am fine. I am sure that you\'re doing well too !</item>
+        <item>I am doing well. I am always there to help you.</item>
+        <item>I am fine as long as I am able to help you.</item>
+        <item>I love being your Assistant !</item>
+        <item>I am here only for you !</item>
+        <item>Glad that you like me and my Service !</item>
+        <item>Have a Nice Protonic Day !</item>
+        <item>Good Day, Dear Protonite !</item>
+        <item>Have a Nice Protonic Morning !</item>
+        <item>Good Morning, Dear Protonite !</item>
+        <item>Have a Nice Protonic Afternoon !</item>
+        <item>Good Afternoon, Dear Protonite !</item>
+        <item>Have a Nice Protonic Evening !</item>
+        <item>Good Evening, Dear Protonite !</item>
+        <item>Have Sweet Protonic Dreams!</item>
+        <item>Good Night, Dear Protonite ! Don\'t forget to set an Alarm using Proton !</item>
+        <item>Good Bye, Dear Protonite ! Waiting to help you again ! Closing the App now !</item>
+        <item>Good Bye ! Let\'s meet again soon ! Closing the App now !</item>
+        <item>I was created by :
+        \n1. Arunprasadh C
+        \n2. Joseph Daniel C</item>
+        <item>@string/help</item>
+    </string-array>
+</resources>

@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" ?>
 <resources>
     <string name="app_name">Proton</string>
     <string name="type_a_command">Type/Speak something</string>
@@ -6,4 +7,19 @@
     <string name="proton"><b>Proton</b></string>
     <string name="listening_to_you">Listening to you…</string>
     <string name="cancel">Cancel</string>
+    <string name="help">Hello Protonite ! This is how I can help you :
+    \n1. You can call anyone by using this command prefix : Call this Number
+    \n2. You can search anything on Google by using this command prefix : Google this
+    \n3. You can play any song/video on YouTube by using this command prefix : Play this
+    \n4. You can send an SMS to anyone by using this command prefix : Ping
+    \n5. You can take a Selfie by using this command : Take A Selfie
+    \n6. You can take a Picture by using this command : Take A Picture
+    \n7. You can turn FlashLight ON/OFF using this command : Turn ON/OFF FlashLight
+    \n8. You can Increase/Decrease Brightness using this command : Increase/Decrease Brightness
+    \n9. You can Set/Delete an Alarm using this command : Set/Delete An Alarm
+    \n10. You can the Phone Settings using this command : Open Phone Settings
+    \n11. You can view this Help List again by asking me to Help You
+    \nYou can also have short and simple conversations with me.
+    \nHappy Protoning !
+    </string>
 </resources>

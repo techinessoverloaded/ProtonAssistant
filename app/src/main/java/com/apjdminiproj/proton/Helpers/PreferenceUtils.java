@@ -1,4 +1,5 @@
 package com.apjdminiproj.proton.Helpers;
+
 import android.content.Context;
 import android.content.SharedPreferences;
 import androidx.preference.PreferenceManager;
@@ -12,6 +13,7 @@ public class PreferenceUtils
     private static SharedPreferences sharedPreferences;
     private static SharedPreferences.Editor editor;
     private static final String chatListKey="chat_backup";
+    private static final String isFirstTimeKey="is_first_time";
     private static PreferenceUtils instance=null;
     private PreferenceUtils(Context context)
     {
@@ -46,6 +48,16 @@ public class PreferenceUtils
         String json=gson.toJson(value);
         editor.remove(chatListKey).apply();
         editor.putString(chatListKey,json);
+        editor.apply();
+    }
+    public boolean getIsFirstTime()
+    {
+        return sharedPreferences.getBoolean(isFirstTimeKey,true);
+    }
+    public void setIsFirstTime(boolean value)
+    {
+        editor=sharedPreferences.edit();
+        editor.putBoolean(isFirstTimeKey,value);
         editor.apply();
     }
 }

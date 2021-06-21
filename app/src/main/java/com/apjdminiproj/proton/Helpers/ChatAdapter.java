@@ -20,9 +20,9 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder>
 {
     public static final int MSG_TYPE_LEFT=0;
     public static final int MSG_TYPE_RIGHT=1;
-    private Context mContext;
-    private List<Chat> messages;
-    private Animation bounceAnimation;
+    private final Context mContext;
+    private final List<Chat> messages;
+    private final Animation bounceAnimation;
     public ChatAdapter(Context context,List<Chat> msgs)
     {
         mContext=context;
@@ -36,12 +36,12 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder>
         if(viewType==MSG_TYPE_RIGHT)
         {
             View view = LayoutInflater.from(mContext).inflate(R.layout.chat_item_right,parent,false);
-            return new ChatAdapter.ViewHolder(view);
+            return new ViewHolder(view);
         }
         else
         {
             View view = LayoutInflater.from(mContext).inflate(R.layout.chat_item_left,parent,false);
-            return new ChatAdapter.ViewHolder(view);
+            return new ViewHolder(view);
         }
     }
 
@@ -90,10 +90,10 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder>
         return messages.get(position).getMessageType();
     }
 
-    public class ViewHolder extends RecyclerView.ViewHolder
+    public static class ViewHolder extends RecyclerView.ViewHolder
     {
-        private TextView showMessageLeft;
-        private TextView showMessageRight;
+        private final TextView showMessageLeft;
+        private final TextView showMessageRight;
         public ViewHolder(@NonNull View itemView)
         {
             super(itemView);

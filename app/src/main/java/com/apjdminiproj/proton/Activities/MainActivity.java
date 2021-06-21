@@ -1,15 +1,5 @@
 package com.apjdminiproj.proton.Activities;
 
-import androidx.activity.result.ActivityResult;
-import androidx.activity.result.ActivityResultCallback;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
-import androidx.fragment.app.DialogFragment;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 import android.Manifest;
 import android.app.Activity;
 import android.app.SearchManager;
@@ -17,15 +7,12 @@ import android.app.TimePickerDialog;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.drawable.ColorDrawable;
 import android.hardware.camera2.CameraAccessException;
-import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.CameraMetadata;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -34,7 +21,10 @@ import android.os.Handler;
 import android.provider.AlarmClock;
 import android.provider.MediaStore;
 import android.provider.Settings;
+import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
+import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.telephony.SmsManager;
 import android.text.Editable;
@@ -44,14 +34,25 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.TimePicker;
-import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import com.apjdminiproj.proton.Helpers.Chat;
+import com.apjdminiproj.proton.Helpers.ChatAdapter;
+import com.apjdminiproj.proton.Helpers.PermissionHelper;
+import com.apjdminiproj.proton.Helpers.PreferenceUtils;
+import com.apjdminiproj.proton.R;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -60,16 +61,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
-import java.util.regex.*;
-import com.apjdminiproj.proton.Helpers.Chat;
-import com.apjdminiproj.proton.Helpers.ChatAdapter;
-import com.apjdminiproj.proton.Helpers.PermissionHelper;
-import com.apjdminiproj.proton.Helpers.PreferenceUtils;
-import com.apjdminiproj.proton.R;
-import android.speech.RecognitionListener;
-import android.speech.SpeechRecognizer;
-import android.speech.tts.TextToSpeech;
-import java.util.ArrayList;
+import java.util.regex.Pattern;
 
 public class MainActivity extends AppCompatActivity
 {
@@ -114,7 +106,7 @@ public class MainActivity extends AppCompatActivity
             if((Integer)sendBtn.getTag()==R.drawable.ic_send) {
                 command = cmdInput.getText().toString();
                 if (command.isEmpty() || command == null) {
-                    Toast.makeText(this, "No command was entered to be executed !", Toast.LENGTH_LONG).show();
+                    receiveMessage("No command was entered to be executed !",false);
                 } else {
                     if (!waitingForInput) {
                         sendMessage(command, false);
@@ -188,15 +180,12 @@ public class MainActivity extends AppCompatActivity
             checkPermission();
         waitingForInput=false;
         preferenceUtils=PreferenceUtils.getInstance(getApplicationContext());
-        Handler handler=new Handler(getMainLooper());
-        handler.post(() -> {
-            if(preferenceUtils.getChatList()==null)
-                mChat=new ArrayList<>();
-            else
-                mChat=preferenceUtils.getChatList();
-            chatAdapter=new ChatAdapter(MainActivity.this,mChat);
-            recyclerView.setAdapter(chatAdapter);
-        });
+        if(preferenceUtils.getChatList()==null)
+            mChat=new ArrayList<>();
+        else
+            mChat=preferenceUtils.getChatList();
+        chatAdapter=new ChatAdapter(MainActivity.this,mChat);
+        recyclerView.setAdapter(chatAdapter);
         cmdInput.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -220,78 +209,65 @@ public class MainActivity extends AppCompatActivity
             public void afterTextChanged(Editable s) {
             }
         });
-        launcherForPicture=registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), new ActivityResultCallback<ActivityResult>() {
-            @Override
-            public void onActivityResult(ActivityResult result)
+        launcherForPicture=registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+            if(result.getResultCode()==RESULT_OK)
             {
-                if(result.getResultCode()==RESULT_OK)
+                if(result.getData().getExtras()!=null)
                 {
-                    if(result.getData().getExtras()!=null)
-                    {
-                        Bitmap picture = (Bitmap) result.getData().getExtras().get("data");
-                        startActivity(originalIntent);
-                        try {
-                            String path = saveImage(picture,"ProtonCapture"+Calendar.getInstance().getTimeInMillis());
-                            receiveMessage("Stored the pic at "+path.replaceFirst("/","")+" successfully !",false);
-                        }
-                        catch (IOException e)
-                        {
-                            e.printStackTrace();
-                            receiveMessage("Failed to save the pic ! Try again !",false);
-                        }
+                    Bitmap picture = (Bitmap) result.getData().getExtras().get("data");
+                    startActivity(originalIntent);
+                    try {
+                        String path = saveImage(picture,"ProtonCapture"+Calendar.getInstance().getTimeInMillis());
+                        receiveMessage("Stored the pic at "+path.replaceFirst("/","")+" successfully !",false);
                     }
-                    else
+                    catch (IOException e)
                     {
-                        startActivity(originalIntent);
+                        e.printStackTrace();
                         receiveMessage("Failed to save the pic ! Try again !",false);
                     }
                 }
                 else
                 {
                     startActivity(originalIntent);
-                    receiveMessage("Failed to capture a pic ! Try again !",false);
+                    receiveMessage("Failed to save the pic ! Try again !",false);
                 }
             }
-        });
-        launcherForSelfie=registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), new ActivityResultCallback<ActivityResult>() {
-            @Override
-            public void onActivityResult(ActivityResult result)
+            else
             {
-                if(result.getResultCode()==RESULT_OK)
+                startActivity(originalIntent);
+                receiveMessage("Failed to capture a pic ! Try again !",false);
+            }
+        });
+        launcherForSelfie=registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+            if(result.getResultCode()==RESULT_OK)
+            {
+                if(result.getData().getExtras()!=null)
                 {
-                    if(result.getData().getExtras()!=null)
-                    {
-                        Bitmap picture = (Bitmap) result.getData().getExtras().get("data");
-                        startActivity(originalIntent);
-                        try {
-                            String path = saveImage(picture,"ProtonSelfie"+Calendar.getInstance().getTimeInMillis());
-                            receiveMessage("Stored the Selfie pic at "+path.replaceFirst("/","")+" successfully !",false);
-                        }
-                        catch (IOException e)
-                        {
-                            e.printStackTrace();
-                            receiveMessage("Failed to save the Selfie pic ! Try again !",false);
-                        }
+                    Bitmap picture = (Bitmap) result.getData().getExtras().get("data");
+                    startActivity(originalIntent);
+                    try {
+                        String path = saveImage(picture,"ProtonSelfie"+Calendar.getInstance().getTimeInMillis());
+                        receiveMessage("Stored the Selfie pic at "+path.replaceFirst("/","")+" successfully !",false);
                     }
-                    else
+                    catch (IOException e)
                     {
-                        startActivity(originalIntent);
+                        e.printStackTrace();
                         receiveMessage("Failed to save the Selfie pic ! Try again !",false);
                     }
                 }
                 else
                 {
                     startActivity(originalIntent);
-                    receiveMessage("Failed to capture a Selfie pic ! Try again !",false);
+                    receiveMessage("Failed to save the Selfie pic ! Try again !",false);
                 }
             }
+            else
+            {
+                startActivity(originalIntent);
+                receiveMessage("Failed to capture a Selfie pic ! Try again !",false);
+            }
         });
-        conversationResponses=new String[]
-                {
-                "I am fine. Hope you're doing well !",
-                        "I am doing well. I am always there to help you.",
-                        "I am fine as long as I am able to help you."
-                };
+        conversationResponses=getResources().getStringArray(R.array.conversations);
     }
     private String preprocessCommand(String cmd)
     {
@@ -476,32 +452,22 @@ public class MainActivity extends AppCompatActivity
         {
             receiveMessage("Choose when to set an alarm",false);
             Calendar calendar=Calendar.getInstance();
-            TimePickerDialog setAlarmTimePicker = new TimePickerDialog(MainActivity.this, R.style.TimePickerDialogTheme, new TimePickerDialog.OnTimeSetListener() {
-                @Override
-                public void onTimeSet(TimePicker view, int hourOfDay, int minute)
-                {
-                    Calendar calendar=Calendar.getInstance();
-                    calendar.set(Calendar.HOUR_OF_DAY,hourOfDay);
-                    calendar.set(Calendar.MINUTE,minute);
-                    calendar.set(Calendar.SECOND,0);
-                    Intent intent=new Intent(AlarmClock.ACTION_SET_ALARM);
-                    intent.putExtra(AlarmClock.EXTRA_HOUR,hourOfDay);
-                    intent.putExtra(AlarmClock.EXTRA_MINUTES,minute);
-                    intent.putExtra(AlarmClock.EXTRA_SKIP_UI,true);
-                    startActivity(intent);
-                    receiveMessage("Alarm set at "+
-                            DateFormat.getTimeInstance(DateFormat.SHORT).format(calendar.getTime())+" successfully !",false);
-                }
+            TimePickerDialog setAlarmTimePicker = new TimePickerDialog(MainActivity.this, R.style.TimePickerDialogTheme, (view, hourOfDay, minute) -> {
+                Calendar calendar1 =Calendar.getInstance();
+                calendar1.set(Calendar.HOUR_OF_DAY,hourOfDay);
+                calendar1.set(Calendar.MINUTE,minute);
+                calendar1.set(Calendar.SECOND,0);
+                Intent intent=new Intent(AlarmClock.ACTION_SET_ALARM);
+                intent.putExtra(AlarmClock.EXTRA_HOUR,hourOfDay);
+                intent.putExtra(AlarmClock.EXTRA_MINUTES,minute);
+                intent.putExtra(AlarmClock.EXTRA_SKIP_UI,true);
+                startActivity(intent);
+                receiveMessage("Alarm set at "+
+                        DateFormat.getTimeInstance(DateFormat.SHORT).format(calendar1.getTime())+" successfully !",false);
             },calendar.get(Calendar.HOUR_OF_DAY),calendar.get(Calendar.MINUTE),true);
             setAlarmTimePicker.setCancelable(false);
             setAlarmTimePicker.setCanceledOnTouchOutside(false);
-            setAlarmTimePicker.setOnCancelListener(new DialogInterface.OnCancelListener() {
-                @Override
-                public void onCancel(DialogInterface dialog)
-                {
-                    receiveMessage("Alarm Setting Task cancelled successfully !",false);
-                }
-            });
+            setAlarmTimePicker.setOnDismissListener(dialog -> receiveMessage("Alarm Setting Task cancelled successfully !",false));
             setAlarmTimePicker.show();
         }
         else if(cmd.contains("deleteanalarm"))
@@ -518,10 +484,73 @@ public class MainActivity extends AppCompatActivity
             return true;
         }
         else if(cmd.contains("howareyou")||cmd.contains("whatsup")
-                ||cmd.contains("howsitgoing")||cmd.contains("hopeyouaredoingwell"))
+                ||cmd.contains("howsitgoing")||cmd.contains("hopeyouaredoingwell")
+                ||cmd.contains("howisitgoing")||cmd.contains("hopeyouredoingwell")
+                ||cmd.contains("whatisup"))
         {
             int randomReplyIndex=randomEngine.nextInt(3);
             receiveMessage(conversationResponses[randomReplyIndex],false);
+            return true;
+        }
+        else if(cmd.contains("ilikeyou")||cmd.contains("iloveyou")
+                ||cmd.contains("ilikeyourservice")||cmd.contains("iloveyourservice"))
+        {
+            int randomReplyIndex=randomEngine.nextInt(3)+3;
+            receiveMessage(conversationResponses[randomReplyIndex],false);
+            return true;
+        }
+        else if(cmd.contains("goodday")||cmd.contains("haveagoodday")
+                ||cmd.contains("haveaniceday")||cmd.contains("niceday")||cmd.contains("hello"))
+        {
+            int randomReplyIndex=randomEngine.nextInt(2)+6;
+            receiveMessage(conversationResponses[randomReplyIndex],false);
+            return true;
+        }
+        else if(cmd.contains("goodmorning")||cmd.contains("haveagoodmorning")
+                ||cmd.contains("haveanicemorning")||cmd.contains("nicemorning"))
+        {
+            int randomReplyIndex=randomEngine.nextInt(2)+8;
+            receiveMessage(conversationResponses[randomReplyIndex],false);
+            return true;
+        }
+        else if(cmd.contains("goodafternoon")||cmd.contains("haveagoodafternoon")
+                ||cmd.contains("haveaniceafternoon")||cmd.contains("niceafternoon"))
+        {
+            int randomReplyIndex=randomEngine.nextInt(2)+10;
+            receiveMessage(conversationResponses[randomReplyIndex],false);
+            return true;
+        }
+        else if(cmd.contains("goodevening")||cmd.contains("haveagoodevening")
+                ||cmd.contains("haveaniceevening")||cmd.contains("niceevening"))
+        {
+            int randomReplyIndex=randomEngine.nextInt(2)+12;
+            receiveMessage(conversationResponses[randomReplyIndex],false);
+            return true;
+        }
+        else if(cmd.contains("goodnight")||cmd.contains("goodnightsweetdreams"))
+        {
+            int randomReplyIndex=randomEngine.nextInt(2)+14;
+            receiveMessage(conversationResponses[randomReplyIndex],false);
+            return true;
+        }
+        else if(cmd.contains("goodbye")||cmd.contains("goodbyefornow")
+                ||cmd.contains("bye")||cmd.contains("byefornow"))
+        {
+            int randomReplyIndex=randomEngine.nextInt(2)+16;
+            receiveMessage(conversationResponses[randomReplyIndex],false);
+            Handler handler=new Handler(getMainLooper());
+            handler.postDelayed(() -> finish(),3000);
+            return true;
+        }
+        else if(cmd.contains("whocreatedyou"))
+        {
+            receiveMessage(conversationResponses[18],false);
+            return true;
+        }
+        else if(cmd.contains("canyouhelpme")||cmd.contains("howcanyouhelpme")
+                ||cmd.contains("ineedyourhelp")||cmd.contains("iwantyourassistance")||cmd.equals("heyproton"))
+        {
+            receiveMessage(conversationResponses[19],false);
             return true;
         }
         else
@@ -585,54 +614,43 @@ public class MainActivity extends AppCompatActivity
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
     {
         super.onRequestPermissionsResult(requestCode,permissions,grantResults);
-        switch (requestCode)
-        {
-            case 100:
-            {
-                Map<String, Integer> perms = new HashMap<>();
-                for (String permission : permissions)
-                {
-                    perms.put(permission, PackageManager.PERMISSION_GRANTED);
+        if (requestCode == 100) {
+            Map<String, Integer> perms = new HashMap<>();
+            for (String permission : permissions) {
+                perms.put(permission, PackageManager.PERMISSION_GRANTED);
+            }
+            if (grantResults.length > 0) {
+                for (int i = 0; i < permissions.length; i++)
+                    perms.put(permissions[i], grantResults[i]);
+
+                boolean allPermissionsGranted = true;
+                for (String permission1 : permissions) {
+                    allPermissionsGranted = allPermissionsGranted && (perms.get(permission1) == PackageManager.PERMISSION_GRANTED);
                 }
-                if (grantResults.length > 0)
-                {
-                    for (int i = 0; i < permissions.length; i++)
-                        perms.put(permissions[i], grantResults[i]);
+                if (allPermissionsGranted) {
+                    Log.d(PermissionHelper.class.getSimpleName(), "onRequestPermissionsResult: all permissions granted");
+                } else {
+                    for (String permission2 : perms.keySet())
+                        if (perms.get(permission2) == PackageManager.PERMISSION_GRANTED)
+                            perms.remove(permission2);
 
-                    boolean allPermissionsGranted = true;
-                    for (String permission1 : permissions)
-                    {
-                        allPermissionsGranted = allPermissionsGranted && (perms.get(permission1) == PackageManager.PERMISSION_GRANTED);
+                    StringBuilder message = new StringBuilder("The app has not been granted the following permission(s):\n\n");
+                    for (String permission : perms.keySet()) {
+                        message.append(permission);
+                        message.append("\n");
                     }
-                    if (allPermissionsGranted)
-                    {
-                        Log.d(PermissionHelper.class.getSimpleName(), "onRequestPermissionsResult: all permissions granted");
-                    }
-                    else
-                    {
-                        for (String permission2 : perms.keySet())
-                            if (perms.get(permission2) == PackageManager.PERMISSION_GRANTED)
-                                perms.remove(permission2);
+                    message.append("\nHence, it cannot function properly." +
+                            "\nPlease consider granting it these permissions in the Phone Settings.");
 
-                        StringBuilder message = new StringBuilder("The app has not been granted the following permission(s):\n\n");
-                        for (String permission : perms.keySet())
-                        {
-                            message.append(permission);
-                            message.append("\n");
-                        }
-                        message.append("\nHence, it cannot function properly." +
-                                "\nPlease consider granting it these permissions in the Phone Settings.");
-
-                        final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this,R.style.AlertDialogTheme);
-                        builder.setTitle("Permission Required")
-                                .setMessage(message)
-                                .setPositiveButton("OK", (dialog, id) -> {
-                                    dialog.cancel();
-                                    MainActivity.this.finish();
-                                });
-                        final AlertDialog alert = builder.create();
-                        alert.show();
-                    }
+                    final AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this, R.style.AlertDialogTheme);
+                    builder.setTitle("Permission Required")
+                            .setMessage(message)
+                            .setPositiveButton("OK", (dialog, id) -> {
+                                dialog.cancel();
+                                MainActivity.this.finish();
+                            });
+                    final AlertDialog alert = builder.create();
+                    alert.show();
                 }
             }
         }
@@ -763,11 +781,8 @@ public class MainActivity extends AppCompatActivity
                     public void onError(int error)
                     {
                         if(error==SpeechRecognizer.ERROR_SPEECH_TIMEOUT||error==SpeechRecognizer.ERROR_NO_MATCH) {
-                            textToSpeech.speak("No Response try again",
-                                    TextToSpeech.QUEUE_ADD, null, "NoResponse");
                             SpeechRecognitionDialog.dismiss();
-                            Toast.makeText(MainActivity.this, "No response ! Try again !", Toast.LENGTH_LONG)
-                                    .show();
+                            receiveMessage( "No response ! Try again !",false);
                         }
                     }
 
@@ -802,10 +817,15 @@ public class MainActivity extends AppCompatActivity
             }
             else
             {
-                Toast.makeText(this, "Speech Recognition is unavailable in this Device! You can't use Voice Mode!"
-                        , Toast.LENGTH_LONG).show();
+                receiveMessage("Speech Recognition is unavailable in this Device! You can't use Voice Mode!"
+                        ,false);
                 SpeechRecognitionDialog.dismiss();
             }
+        }
+        if(preferenceUtils.getIsFirstTime())
+        {
+            receiveMessage(conversationResponses[19], false);
+            preferenceUtils.setIsFirstTime(false);
         }
     }
 
@@ -832,9 +852,7 @@ public class MainActivity extends AppCompatActivity
             SpeechRecognitionDialog.setCancelable(false);
             SpeechRecognitionDialog.setOnShowListener(dialog ->
                     speechRecognizer.startListening(speechRecognizerIntent));
-            SpeechRecognitionDialog.setOnDismissListener(dialog -> {
-                speechRecognizer.stopListening();
-            });
+            SpeechRecognitionDialog.setOnDismissListener(dialog -> speechRecognizer.stopListening());
             if (SpeechRecognitionDialog.getWindow() != null)
             {
                 SpeechRecognitionDialog.getWindow().setBackgroundDrawable(new ColorDrawable(0));

@@ -1,35 +1,37 @@
 package com.apjdminiproj.proton.Activities;
 
-
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.content.ContextCompat;
+import androidx.fragment.app.DialogFragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.Manifest;
 import android.app.Activity;
 import android.app.SearchManager;
-import android.content.ComponentName;
+import android.app.TimePickerDialog;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.drawable.ColorDrawable;
 import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CameraMetadata;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.provider.AlarmClock;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.speech.RecognizerIntent;
@@ -42,21 +44,22 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.TimePicker;
 import android.widget.Toast;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.regex.*;
 import com.apjdminiproj.proton.Helpers.Chat;
 import com.apjdminiproj.proton.Helpers.ChatAdapter;
@@ -70,7 +73,7 @@ import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity
 {
-    private ConstraintLayout inputLayout;
+    private String numbersRegex;
     private ImageView sendBtn;
     private EditText cmdInput;
     private String command,smsRec;
@@ -78,7 +81,6 @@ public class MainActivity extends AppCompatActivity
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
     private Intent speechRecognizerIntent;
-    private String numbersRegex,contactRegex;
     private ChatAdapter chatAdapter;
     private ArrayList<Chat> mChat;
     private RecyclerView recyclerView;
@@ -88,6 +90,9 @@ public class MainActivity extends AppCompatActivity
     private AlertDialog SpeechRecognitionDialog;
     private ActivityResultLauncher<Intent> launcherForPicture,launcherForSelfie;
     private Intent originalIntent;
+    private String[] conversationResponses;
+    private Random randomEngine;
+    private boolean isTorchOn;
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
@@ -96,12 +101,15 @@ public class MainActivity extends AppCompatActivity
         recyclerView=findViewById(R.id.recyclerView);
         sendBtn=findViewById(R.id.send_button);
         cmdInput=findViewById(R.id.cmdInput);
+        sendBtn.setTag(R.drawable.ic_speech);
         recyclerView.setHasFixedSize(true);
         linearLayoutManager=new LinearLayoutManager(MainActivity.this);
         linearLayoutManager.setStackFromEnd(true);
         recyclerView.setLayoutManager(linearLayoutManager);
         originalIntent=getIntent();
         hasCameraFlash = getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH);
+        isTorchOn=false;
+        randomEngine=new Random();
         sendBtn.setOnClickListener(v -> {
             if((Integer)sendBtn.getTag()==R.drawable.ic_send) {
                 command = cmdInput.getText().toString();
@@ -278,6 +286,12 @@ public class MainActivity extends AppCompatActivity
                 }
             }
         });
+        conversationResponses=new String[]
+                {
+                "I am fine. Hope you're doing well !",
+                        "I am doing well. I am always there to help you.",
+                        "I am fine as long as I am able to help you."
+                };
     }
     private String preprocessCommand(String cmd)
     {
@@ -356,6 +370,7 @@ public class MainActivity extends AppCompatActivity
             intent.putExtra("android.intent.extras.CAMERA_FACING", 1);
             receiveMessage("Opening Selfie Cam ! Say Cheese !",false);
             launcherForSelfie.launch(intent);
+            return true;
         }
         else if(cmd.contains("takeapicture"))
         {
@@ -363,6 +378,7 @@ public class MainActivity extends AppCompatActivity
             intent.putExtra("android.intent.extras.CAMERA_FACING", 0);
             receiveMessage("Opening Back Cam !",false);
             launcherForPicture.launch(intent);
+            return true;
         }
         else if(cmd.contains("turnonflashlight"))
         {
@@ -374,9 +390,15 @@ public class MainActivity extends AppCompatActivity
             CameraManager cameraManager=(CameraManager)getSystemService(Context.CAMERA_SERVICE);
             try
             {
-                String cameraId = cameraManager.getCameraIdList()[0];
-                cameraManager.setTorchMode(cameraId, true);
-                receiveMessage("Turned ON FlashLight successfully !",false);
+                if(isTorchOn)
+                    receiveMessage("The FlashLight has already been turned ON !",false);
+                else
+                    {
+                    String cameraId = cameraManager.getCameraIdList()[0];
+                    cameraManager.setTorchMode(cameraId, true);
+                    receiveMessage("Turned ON FlashLight successfully !", false);
+                    isTorchOn = true;
+                }
                 return true;
             }
             catch (CameraAccessException e)
@@ -390,10 +412,16 @@ public class MainActivity extends AppCompatActivity
                 CameraManager cameraManager=(CameraManager)getSystemService(Context.CAMERA_SERVICE);
                 try
                 {
-                    String cameraId = cameraManager.getCameraIdList()[0];
-                    cameraManager.setTorchMode(cameraId, false);
-                    receiveMessage("Turned OFF FlashLight successfully !",false);
-                    return true;
+                    if(!isTorchOn)
+                        receiveMessage("The FlashLight has already been turned OFF !",false);
+                    else
+                        {
+                        String cameraId = cameraManager.getCameraIdList()[0];
+                        cameraManager.setTorchMode(cameraId, false);
+                        receiveMessage("Turned OFF FlashLight successfully !", false);
+                        isTorchOn=false;
+                        return true;
+                    }
                 }
                 catch (CameraAccessException e)
                 {
@@ -435,21 +463,71 @@ public class MainActivity extends AppCompatActivity
             }
             return true;
         }
-        else if(cmd.contains("increasevolume"))
-        {
-
-        }
-        else if(cmd.contains("decreasevolume"))
-        {
-
-        }
         else if(cmd.contains("cleartheconversation"))
         {
             if(mChat!=null)
             {
                 mChat.clear();
                 receiveMessage("The Preserved Messages were cleared successfully !",false);
+                return true;
             }
+        }
+        else if(cmd.contains("setanalarm"))
+        {
+            receiveMessage("Choose when to set an alarm",false);
+            Calendar calendar=Calendar.getInstance();
+            TimePickerDialog setAlarmTimePicker = new TimePickerDialog(MainActivity.this, R.style.TimePickerDialogTheme, new TimePickerDialog.OnTimeSetListener() {
+                @Override
+                public void onTimeSet(TimePicker view, int hourOfDay, int minute)
+                {
+                    Calendar calendar=Calendar.getInstance();
+                    calendar.set(Calendar.HOUR_OF_DAY,hourOfDay);
+                    calendar.set(Calendar.MINUTE,minute);
+                    calendar.set(Calendar.SECOND,0);
+                    Intent intent=new Intent(AlarmClock.ACTION_SET_ALARM);
+                    intent.putExtra(AlarmClock.EXTRA_HOUR,hourOfDay);
+                    intent.putExtra(AlarmClock.EXTRA_MINUTES,minute);
+                    intent.putExtra(AlarmClock.EXTRA_SKIP_UI,true);
+                    startActivity(intent);
+                    receiveMessage("Alarm set at "+
+                            DateFormat.getTimeInstance(DateFormat.SHORT).format(calendar.getTime())+" successfully !",false);
+                }
+            },calendar.get(Calendar.HOUR_OF_DAY),calendar.get(Calendar.MINUTE),true);
+            setAlarmTimePicker.setCancelable(false);
+            setAlarmTimePicker.setCanceledOnTouchOutside(false);
+            setAlarmTimePicker.setOnCancelListener(new DialogInterface.OnCancelListener() {
+                @Override
+                public void onCancel(DialogInterface dialog)
+                {
+                    receiveMessage("Alarm Setting Task cancelled successfully !",false);
+                }
+            });
+            setAlarmTimePicker.show();
+        }
+        else if(cmd.contains("deleteanalarm"))
+        {
+            receiveMessage("Opening Clock App where you can delete an alarm",false);
+            Intent intent=new Intent(AlarmClock.ACTION_DISMISS_ALARM);
+            startActivity(intent);
+        }
+        else if(cmd.contains("openphonesettings"))
+        {
+            Intent intent=new Intent(Settings.ACTION_SETTINGS);
+            receiveMessage("Opening Phone Settings",false);
+            startActivity(intent);
+            return true;
+        }
+        else if(cmd.contains("howareyou")||cmd.contains("whatsup")
+                ||cmd.contains("howsitgoing")||cmd.contains("hopeyouaredoingwell"))
+        {
+            int randomReplyIndex=randomEngine.nextInt(3);
+            receiveMessage(conversationResponses[randomReplyIndex],false);
+            return true;
+        }
+        else
+        {
+            receiveMessage("Invalid Command/Message",false);
+            return false;
         }
         command=null;
         return true;
@@ -476,10 +554,6 @@ public class MainActivity extends AppCompatActivity
         bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
         Objects.requireNonNull(fos).close();
         return path;
-    }
-    private boolean callByContactName(String ct)
-    {
-        return true;
     }
     private void sendSMS(String recipient)
     {
@@ -603,7 +677,6 @@ public class MainActivity extends AppCompatActivity
             waitingForInput=true;
         }
     }
-
     @Override
     protected void onResume()
     {
@@ -714,7 +787,6 @@ public class MainActivity extends AppCompatActivity
                                 sendMessage(command, false);
                                 executeCommand(preprocessCommand(command));
                             }
-                            Log.d("preprocessedCmd", preprocessCommand(command));
                             scrollToRecentMessage();
                     }
                     @Override
@@ -733,7 +805,6 @@ public class MainActivity extends AppCompatActivity
                 Toast.makeText(this, "Speech Recognition is unavailable in this Device! You can't use Voice Mode!"
                         , Toast.LENGTH_LONG).show();
                 SpeechRecognitionDialog.dismiss();
-                inputLayout.setVisibility(View.VISIBLE);
             }
         }
     }

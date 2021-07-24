@@ -467,7 +467,7 @@ public class MainActivity extends AppCompatActivity
             },calendar.get(Calendar.HOUR_OF_DAY),calendar.get(Calendar.MINUTE),true);
             setAlarmTimePicker.setCancelable(false);
             setAlarmTimePicker.setCanceledOnTouchOutside(false);
-            setAlarmTimePicker.setOnDismissListener(dialog -> receiveMessage("Alarm Setting Task cancelled successfully !",false));
+            setAlarmTimePicker.setOnCancelListener(dialog -> receiveMessage("Alarm Setting Task cancelled successfully !",false));
             setAlarmTimePicker.show();
         }
         else if(cmd.contains("deleteanalarm"))
@@ -606,9 +606,17 @@ public class MainActivity extends AppCompatActivity
     private void checkPermission()
     {
         PermissionHelper permissionHelper=new PermissionHelper();
-        permissionHelper.checkAndRequestPermissions(this,Manifest.permission.SEND_SMS,
-                Manifest.permission.CALL_PHONE,Manifest.permission.CAMERA,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE,Manifest.permission.RECORD_AUDIO);
+        if(Build.VERSION.SDK_INT<=Build.VERSION_CODES.P) {
+            permissionHelper.checkAndRequestPermissions(this, Manifest.permission.SEND_SMS,
+                    Manifest.permission.CALL_PHONE, Manifest.permission.CAMERA,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.RECORD_AUDIO);
+        }
+        else
+        {
+            permissionHelper.checkAndRequestPermissions(this, Manifest.permission.SEND_SMS,
+                    Manifest.permission.CALL_PHONE, Manifest.permission.CAMERA,
+                    Manifest.permission.RECORD_AUDIO);
+        }
     }
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)

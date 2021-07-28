@@ -101,6 +101,7 @@ public class MainActivity extends AppCompatActivity
         originalIntent=getIntent();
         hasCameraFlash = getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH);
         isTorchOn=false;
+        numbersRegex="\\d{10}";
         randomEngine=new Random();
         sendBtn.setOnClickListener(v -> {
             if((Integer)sendBtn.getTag()==R.drawable.ic_send) {
@@ -269,6 +270,8 @@ public class MainActivity extends AppCompatActivity
         });
         conversationResponses=getResources().getStringArray(R.array.conversations);
     }
+
+
     private String preprocessCommand(String cmd)
     {
         cmd=cmd.toLowerCase();

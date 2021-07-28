@@ -159,8 +159,8 @@ public class MainActivity extends AppCompatActivity
                                 final AlertDialog alert = builder.create();
                                 alert.show();
                             }
-                            checkPermission();
                         }
+                        checkPermission();
                     }
             );
             builder2.setTitle("Needs Protected Permission").setCancelable(false)
